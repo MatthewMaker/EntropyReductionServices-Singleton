@@ -4,6 +4,21 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0]
+
+### Changed
+
+- **Breaking:** the minimum supported editor is now Unity 6.3 LTS (`"unity": "6000.3"`), raised
+  from 2022.3. 6.3 is the oldest Unity still under support: 6.0 LTS ended in October 2026 and
+  2022 LTS in May 2025. Consumers on an older editor should stay on 1.0.2.
+- `MaybeFindInScene` calls `FindObjectsByType` unconditionally. The `UNITY_2023_1_OR_NEWER` guard
+  around it was wrong in both directions: `FindObjectsByType` has existed since 2021.3, so the
+  `FindObjectsOfType` fallback was unreachable above the old 2022.3 floor, while on 2022.3 itself
+  the guard selected the fallback — the API deprecated in later editors — instead of the current
+  one. No behaviour change on any supported editor.
+- CI runs one Unity leg, 6000.3.24f1, replacing 2022.3.62f1 and 6000.0.58f1. Both were at or past
+  end of support, and neither covered the version this package now targets.
+
 ## [1.0.2]
 
 ### Fixed

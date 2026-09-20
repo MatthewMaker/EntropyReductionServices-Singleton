@@ -9,7 +9,7 @@ the singleton into a scene that is already unloading, or you mark a nested objec
 `DontDestroyOnLoad` and Unity quietly ignores you. This package handles all three, states exactly
 what it guarantees, and ships analyzers that check callers hold up their end.
 
-MIT licensed. Unity 2022.3 LTS and Unity 6.
+MIT licensed. Unity 6.3 LTS and newer.
 
 ```csharp
 using EntropyReductionServices.Singletons;
@@ -137,10 +137,14 @@ Deliberately out of scope. Issues requesting these will be closed with a pointer
 
 ## Compatibility
 
-Tested on Unity 2022.3 LTS and Unity 6. The analyzer targets `netstandard2.0` against
-Microsoft.CodeAnalysis.CSharp 3.8, which Unity's 2021.3 and 2022.3 documentation names as the
-required version; an analyzer built against older Roslyn loads on newer hosts, so one build covers
-both. 2021.3 will most likely work but is not in CI, so it is not claimed.
+Unity 6.3 LTS (6000.3) and newer; CI runs the test suites on 6000.3.24f1. 6.3 is the floor because
+it is the oldest Unity still under support — 6.0 LTS ended in October 2026 and 2022 LTS in May
+2025. Older editors are likely to work, since nothing here uses an API newer than 2021.3, but
+they are not tested and so are not claimed.
+
+The analyzer targets `netstandard2.0` against Microsoft.CodeAnalysis.CSharp 3.8. Unity 6
+documentation specifies Roslyn 4.3, but an analyzer built against older Roslyn loads on newer
+hosts, and building against 3.8 keeps it loadable on editors older than the supported floor.
 
 ## Developing
 

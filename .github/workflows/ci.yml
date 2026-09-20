@@ -55,16 +55,17 @@ jobs:
             exit 1
           }
 
-  # Confirms the package imports and compiles on each Unity version the README claims.
+  # Confirms the package imports and compiles on the Unity version the README claims.
   # Requires UNITY_LICENSE (and UNITY_EMAIL / UNITY_PASSWORD for a Personal licence) in
   # repository secrets; see https://game.ci/docs/github/activation
   #
-  # Restricted to main, tags and manual runs. Each leg pulls a ~5 GB editor image and takes far
+  # Restricted to main, tags and manual runs. The job pulls a ~5 GB editor image and takes far
   # longer than the rest of the workflow, which is a poor trade on every push to every PR. The
   # analyzer job still runs everywhere, so a pull request keeps fast feedback on the rule set.
-  # Both matrix legs are load-bearing and neither is redundant: MaybeFindInScene forks on
-  # UNITY_2023_1_OR_NEWER, so 2022.3 is the only leg compiling FindObjectsOfType and 6000.0 the
-  # only one compiling FindObjectsByType.
+  #
+  # One version, matching package.json's "unity" floor. 6000.3 is the current LTS, supported
+  # until December 2027; 6.0 LTS ended in October 2026 and 2022 LTS in May 2025. The matrix stays
+  # a matrix so a second version can be added by editing a list rather than restructuring the job.
   unity:
     name: Unity ${{ matrix.unityVersion }}
     runs-on: ubuntu-latest
@@ -77,8 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         unityVersion:
-          - 2022.3.62f1
-          - 6000.0.58f1
+          - 6000.3.24f1
     steps:
       - uses: actions/checkout@v4
 

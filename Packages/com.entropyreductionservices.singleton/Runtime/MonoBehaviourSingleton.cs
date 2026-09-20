@@ -481,11 +481,7 @@ namespace EntropyReductionServices.Singletons
 
             if (Current != null) return;
 
-#if UNITY_2023_1_OR_NEWER
             var objs = FindObjectsByType<T>(FindObjectsInactive.Exclude);
-#else
-            var objs = FindObjectsOfType<T>();
-#endif
 
 #if UNITY_EDITOR
             // The find APIs skip HideFlags.DontSave, and the editor reloads the domain on every

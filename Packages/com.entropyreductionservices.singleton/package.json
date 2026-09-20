@@ -1,9 +1,9 @@
 {
   "name": "com.entropyreductionservices.singleton",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "displayName": "Unity Singletons",
   "description": "MonoBehaviour singleton base classes that survive domain reload, scene loads and application shutdown, with Roslyn analyzers that enforce the contract in consuming assemblies.",
-  "unity": "2022.3",
+  "unity": "6000.3",
   "license": "MIT",
   "keywords": ["singleton", "analyzer", "roslyn", "lifecycle", "utility"],
   "author": {
