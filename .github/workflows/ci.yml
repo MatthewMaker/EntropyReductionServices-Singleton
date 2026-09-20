@@ -89,3 +89,8 @@ jobs:
           testMode: all
           checkName: Tests (${{ matrix.unityVersion }})
           githubToken: ${{ secrets.GITHUB_TOKEN }}
+          # The action has no targetPlatform input, so customImage is the only way to choose
+          # the editor image. Its default resolves to linux-il2cpp, whose IL2CPP toolchain this
+          # job never uses: these are EditMode and PlayMode tests in the editor, not a player
+          # build. The floating "-3" tag tracks the 3.x line rather than pinning a patch.
+          customImage: unityci/editor:ubuntu-${{ matrix.unityVersion }}-base-3
