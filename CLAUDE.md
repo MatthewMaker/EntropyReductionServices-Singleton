@@ -77,7 +77,7 @@ UNITY="/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app/Contents/MacOS/Unity"
 #    Count unique ids, not lines — each warning is printed twice.
 cp "$PKG/Analyzers~/bin/Release/ERS.Singleton.Analyzers.dll" "$PKG/Runtime/Analyzers/"
 ( cd "$PKG/Analyzers~/StalenessProbe" && dotnet build -c Release --no-incremental 2>&1 \
-    | grep -oE "(warning|error) ERS000[0-9]" | sort -u )   # expect ERS0001 through ERS0005
+    | grep -oE "(warning|error) ERS000[0-9]" | sort -u )   # expect ERS0001 through ERS0006
 
 # 4. Runtime behaviour, both platforms. Unity needs Assets/ and ProjectSettings/ present.
 "$UNITY" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode \

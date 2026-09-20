@@ -70,6 +70,12 @@ namespace Consuming
     {
         public void Stop() { }
     }
+
+    // Passive: Instance is null until an Awake claims the slot, so '?.' on it is a real guard.
+    public class Board : MonoBehaviourSingletonPassive<Board>
+    {
+        public void Stop() { }
+    }
 }
 ";
 

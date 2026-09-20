@@ -43,3 +43,4 @@ dotnet_diagnostic.ERS0002.severity = warning     # Instance cached in a field
 dotnet_diagnostic.ERS0003.severity = warning     # unguarded teardown access
 dotnet_diagnostic.ERS0004.severity = error       # access during MonoBehaviour construction
 dotnet_diagnostic.ERS0005.severity = warning     # message hides the base instead of overriding
+dotnet_diagnostic.ERS0006.severity = warning     # dead null-conditional on a lazy Instance

@@ -14,6 +14,7 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0003 | Warning | Guard singleton access in teardown callbacks |
 | ERS0004 | Warning | Do not access a singleton during MonoBehaviour construction |
 | ERS0005 | Warning | Singleton message must be declared with `override` |
+| ERS0006 | Warning | Null-conditional access on a lazy singleton's `Instance` is misleading |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -99,6 +100,31 @@ singleton subclass compiles with only a hiding warning, and the base registratio
 runs — the same end state as ERS0001, reached by a different mistake.
 
 ---
+
+## ers0006 — no null-conditional on a lazy Instance
+
+`MonoBehaviourSingleton<T>` and `MonoBehaviourSingletonPersistent<T>` resolve, create, or throw.
+Their `Instance` does not return null while the application is running, and during teardown it
+returns the destroyed component — which `?.` does not stop, because the operator tests the
+reference rather than consulting Unity's `==` overload.
+
+So on these flavours `?.` is dead outside teardown and useless inside it, while telling every
+reader that the value may be null. Dereference directly:
+
+```csharp
+AudioBus.Instance.Play(clip);        // not AudioBus.Instance?.Play(clip)
+```
+
+Inside `OnDestroy` or `OnApplicationQuit` the same expression is reported as ERS0003 instead —
+one diagnostic, the more serious reading.
+
+**Passive singletons are not reported.** `MonoBehaviourSingletonPassive<T>.Instance` is null until
+some component's `Awake` claims the slot, so `?.` there is a correct guard and the rule stays
+silent:
+
+```csharp
+ScoreBoard.Instance?.Refresh();      // fine: passive, may genuinely be null
+```
 
 ## Retuning severities
 

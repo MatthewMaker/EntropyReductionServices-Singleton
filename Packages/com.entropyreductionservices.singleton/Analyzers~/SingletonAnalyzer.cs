@@ -21,6 +21,12 @@ namespace EntropyReductionServices.Analyzers
         private const string SingletonBaseMetadataName =
             "EntropyReductionServices.Singletons.MonoBehaviourSingletonBase`1";
 
+        // The lazy half of the hierarchy. MonoBehaviourSingletonPassive<T> is its sibling, not its
+        // subclass, so deriving from this is exactly the "Instance never returns null outside
+        // teardown" guarantee and cleanly excludes the passive flavours.
+        private const string LazySingletonMetadataName =
+            "EntropyReductionServices.Singletons.MonoBehaviourSingleton`1";
+
         private const string MonoBehaviourMetadataName = "UnityEngine.MonoBehaviour";
 
         private const string InstancePropertyName = "Instance";
@@ -33,7 +39,8 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.CachedInstance,
                 SingletonDiagnostics.UnguardedTeardownAccess,
                 SingletonDiagnostics.ConstructionTimeAccess,
-                SingletonDiagnostics.HidesBaseMessage);
+                SingletonDiagnostics.HidesBaseMessage,
+                SingletonDiagnostics.RedundantNullConditional);
 
         /// <summary>
         /// Resolves the singleton base type once per compilation and registers nothing at all when
@@ -51,13 +58,14 @@ namespace EntropyReductionServices.Analyzers
                 if (singletonBase == null) return;
 
                 var monoBehaviour = start.Compilation.GetTypeByMetadataName(MonoBehaviourMetadataName);
+                var lazySingleton = start.Compilation.GetTypeByMetadataName(LazySingletonMetadataName);
 
                 start.RegisterSyntaxNodeAction(
                     ctx => AnalyzeMethodDeclaration(ctx, singletonBase),
                     SyntaxKind.MethodDeclaration);
 
                 start.RegisterSyntaxNodeAction(
-                    ctx => AnalyzeInstanceAccess(ctx, singletonBase, monoBehaviour),
+                    ctx => AnalyzeInstanceAccess(ctx, singletonBase, monoBehaviour, lazySingleton),
                     SyntaxKind.SimpleMemberAccessExpression);
             });
         }
@@ -163,7 +171,8 @@ namespace EntropyReductionServices.Analyzers
         private static void AnalyzeInstanceAccess(
             SyntaxNodeAnalysisContext context,
             INamedTypeSymbol singletonBase,
-            INamedTypeSymbol monoBehaviour)
+            INamedTypeSymbol monoBehaviour,
+            INamedTypeSymbol lazySingleton)
         {
             var access = (MemberAccessExpressionSyntax)context.Node;
             if (access.Name.Identifier.ValueText != InstancePropertyName) return;
@@ -183,7 +192,40 @@ namespace EntropyReductionServices.Analyzers
 
             if (TryReportConstructionTime(context, access, enclosing, monoBehaviour, singletonName)) return;
             if (TryReportFieldCache(context, access, singletonName)) return;
-            TryReportTeardown(context, access, enclosing, singletonName);
+            if (TryReportTeardown(context, access, enclosing, singletonName)) return;
+            TryReportRedundantNullConditional(context, access, receiver, lazySingleton, singletonName);
+        }
+
+        /// <summary>
+        /// ERS0006: '?.' on a lazy singleton's Instance, outside a teardown callback.
+        ///
+        /// Runs last and only when TryReportTeardown declined, so a '?.' inside OnDestroy is
+        /// reported once, as ERS0003 — the more serious reading, since there the operator looks
+        /// like protection and provides none. Outside teardown the same expression is merely dead,
+        /// which is what this reports.
+        ///
+        /// Requires the receiver to derive from MonoBehaviourSingleton&lt;T&gt; specifically. The
+        /// passive flavours descend from the shared base instead, and their Instance is genuinely
+        /// null until an Awake claims the slot, so '?.' there is correct and must not be reported.
+        /// </summary>
+        private static void TryReportRedundantNullConditional(
+            SyntaxNodeAnalysisContext context,
+            MemberAccessExpressionSyntax access,
+            INamedTypeSymbol receiver,
+            INamedTypeSymbol lazySingleton,
+            string singletonName)
+        {
+            if (lazySingleton == null || receiver == null) return;
+            if (!DerivesFrom(receiver, lazySingleton)) return;
+
+            if (!(access.Parent is ConditionalAccessExpressionSyntax conditional) ||
+                conditional.Expression != access)
+                return;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.RedundantNullConditional,
+                access.GetLocation(),
+                singletonName));
         }
 
         /// <summary>
@@ -287,13 +329,13 @@ namespace EntropyReductionServices.Analyzers
         /// and the whole method is exempted when it mentions IsAvailable or TryGetInstance, which
         /// is a deliberately crude but predictable way to honour an explicit guard.
         /// </summary>
-        private static void TryReportTeardown(
+        private static bool TryReportTeardown(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access,
             SyntaxNode enclosing,
             string singletonName)
         {
-            if (!(enclosing is MethodDeclarationSyntax method)) return;
+            if (!(enclosing is MethodDeclarationSyntax method)) return false;
 
             var methodName = method.Identifier.ValueText;
             var isTeardown = false;
@@ -304,9 +346,9 @@ namespace EntropyReductionServices.Analyzers
                 break;
             }
 
-            if (!isTeardown) return;
-            if (!IsDereferenced(access)) return;
-            if (HasExplicitGuard(method)) return;
+            if (!isTeardown) return false;
+            if (!IsDereferenced(access)) return false;
+            if (HasExplicitGuard(method)) return false;
 
             var owner = context.SemanticModel
                 .GetEnclosingSymbol(access.SpanStart, context.CancellationToken)?.ContainingType;
@@ -317,6 +359,7 @@ namespace EntropyReductionServices.Analyzers
                 owner?.Name ?? "<unknown>",
                 singletonName,
                 methodName));
+            return true;
         }
 
         /// <summary>

@@ -67,5 +67,6 @@ namespace Probe
 
         private void Start() { _assigned = Bus.Instance; }      // ERS0002 (field cache)
         private void OnDestroy() { Bus.Instance.Stop(); }       // ERS0003 (unguarded teardown)
+        private void Update() { Bus.Instance?.Stop(); }         // ERS0006 (dead null-conditional)
     }
 }

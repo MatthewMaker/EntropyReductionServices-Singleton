@@ -217,15 +217,62 @@ namespace Client
     }
 }");
 
-        /// <summary>Outside teardown a live singleton is guaranteed, so '?.' is unremarkable.</summary>
+        // -- ERS0006: '?.' on a lazy singleton's Instance ---------------------------------------
+
+        /// <summary>
+        /// Outside teardown a lazy Instance cannot be null, so '?.' is dead rather than dangerous.
+        /// ERS0006 rather than ERS0003, and exactly one of them.
+        /// </summary>
         [Test]
-        public Task ERS0003_NullConditionalAccessOutsideTeardown_IsClean() => Harness.Verify(@"
+        public Task ERS0006_NullConditionalOutsideTeardown_IsReported() => Harness.Verify(@"
 namespace Client
 {
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void Update() { Bus.Instance?.Stop(); }
+        private void Update() { {|ERS0006:Bus.Instance|}?.Stop(); }
+    }
+}");
+
+        /// <summary>
+        /// The case a blanket rule would get wrong. A passive singleton's Instance is null until
+        /// some component's Awake claims the slot, so '?.' is the correct spelling there.
+        /// </summary>
+        [Test]
+        public Task ERS0006_NullConditionalOnPassiveSingleton_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void Update() { Board.Instance?.Stop(); }
+    }
+}");
+
+        /// <summary>
+        /// Inside teardown the same expression is reported once, as ERS0003 — the more serious
+        /// reading, since there '?.' looks like protection and provides none.
+        /// </summary>
+        [Test]
+        public Task ERS0006_InsideTeardown_DefersToErs0003() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.Stop(); }
+    }
+}");
+
+        /// <summary>A plain dereference outside teardown is the intended usage.</summary>
+        [Test]
+        public Task ERS0006_PlainDereference_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void Update() { Bus.Instance.Stop(); }
     }
 }");
 

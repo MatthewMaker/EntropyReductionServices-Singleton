@@ -100,6 +100,33 @@ namespace EntropyReductionServices.Analyzers
             helpLinkUri: HelpBase + "ers0004");
 
         /// <summary>
+        /// ERS0006 — '?.' on a lazy singleton's Instance outside teardown. The accessor cannot
+        /// return null there, so the operator is dead; and inside teardown it does not protect
+        /// anything, which ERS0003 covers. Either way it tells a reader the value may be null,
+        /// which for this flavour is never the useful thing to believe.
+        ///
+        /// Deliberately silent for the passive flavours, whose Instance IS null until an Awake
+        /// claims the slot. There '?.' is a correct guard, and flagging it would fire hardest on
+        /// the one flavour that needs it.
+        /// </summary>
+        public static readonly DiagnosticDescriptor RedundantNullConditional = new DiagnosticDescriptor(
+            id: "ERS0006",
+            title: "Null-conditional access on a lazy singleton's Instance is misleading",
+            messageFormat: "'{0}.Instance' cannot be null here, so '?.' is dead; it also does not " +
+                           "guard teardown. Dereference it directly",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            description: "A lazy singleton's Instance resolves, creates, or throws — it does not " +
+                         "return null while the application is running, and during teardown it " +
+                         "returns the destroyed component, which '?.' does not stop because the " +
+                         "operator tests the reference rather than Unity's == overload. The " +
+                         "operator therefore never does what it appears to do on this flavour. " +
+                         "Passive singletons are a different case and are not reported: their " +
+                         "Instance is null until a component's Awake claims the slot.",
+            helpLinkUri: HelpBase + "ers0006");
+
+        /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which
         /// hides the base method. Unity invokes the most-derived declaration, so the base logic
         /// silently never runs — the same end state as ERS0001, reached by a different mistake.
