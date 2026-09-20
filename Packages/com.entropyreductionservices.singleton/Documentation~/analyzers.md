@@ -1,6 +1,6 @@
 # Singleton analyzers
 
-Five rules enforcing the contract in the header of `Runtime/MonoBehaviourSingleton.cs`. They ship
+Five rules enforcing [the contract](contract.md). They ship
 as `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` and apply to this package's assembly **and to
 every assembly that references it** — that scoping is Unity's documented behaviour for an analyzer
 sitting in or under a folder containing an `.asmdef`, and it is why the DLL lives beside the

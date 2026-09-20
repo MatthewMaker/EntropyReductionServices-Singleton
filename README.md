@@ -65,10 +65,9 @@ references.
 for choosing between them, the lifecycle walkthrough, edit-mode behaviour, configuration
 attributes, and the things this deliberately will not do.
 
-The header comment in
-[`MonoBehaviourSingleton.cs`](Packages/com.entropyreductionservices.singleton/Runtime/MonoBehaviourSingleton.cs)
-is the normative contract: guarantees, constraints, forbidden usages, side effects and known gaps,
-in one screen.
+**[contract.md](Packages/com.entropyreductionservices.singleton/Documentation~/contract.md)** is
+the normative contract: guarantees, teardown semantics, constraints on your subclass, forbidden
+usages, side effects and known gaps. Read it before relying on any of them.
 
 ## Install
 

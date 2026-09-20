@@ -3,8 +3,8 @@
 The four base classes in `Runtime/MonoBehaviourSingleton.cs`, what each guarantees, and why the
 implementation is shaped the way it is.
 
-The header comment in that file is the normative contract — terse, complete, and the thing to check
-when you need a precise answer. This document is the explanation.
+[contract.md](contract.md) is the normative contract — terse, complete, and the thing to check when
+you need a precise answer. This document is the explanation.
 
 ## The problem
 
@@ -91,6 +91,9 @@ loads. Plain `MonoBehaviourSingleton<T>` declares no `Awake` at all, so it does 
 picks one instance and logs the others. If you want enforcement, use a persistent or passive flavor.
 
 ## The contract
+
+The summary below is what you need to write correct calling code. The complete, normative version
+— every guarantee, constraint, forbidden usage and known gap — is [contract.md](contract.md).
 
 > A live singleton exists for the entire time the application is running, and none exists during
 > teardown. `Instance` never returns null once the singleton has existed: during teardown it

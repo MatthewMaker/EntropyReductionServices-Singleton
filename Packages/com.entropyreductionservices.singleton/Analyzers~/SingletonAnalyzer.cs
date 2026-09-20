@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace EntropyReductionServices.Analyzers
 {
     /// <summary>
-    /// Enforces the MonoBehaviourSingleton contract documented in the header of
-    /// MonoBehaviourSingleton.cs. All five rules live in one analyzer so they share a single
+    /// Enforces the MonoBehaviourSingleton contract, documented in the package's
+    /// Documentation~/contract.md. All five rules live in one analyzer so they share a single
     /// compilation-start lookup and a single pass over the relevant syntax kinds.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]

@@ -1,84 +1,16 @@
 // =============================================================================================
-//  MonoBehaviourSingleton — contract
-// =============================================================================================
+//  MonoBehaviourSingleton
 //
-//  GOALS
-//    - One well-known access point per component type, correct across scene loads, editor domain
-//      reload, and application shutdown.
-//    - Four flavours expressing genuinely different contracts, not four spellings of one.
-//    - Failures surface at the mistake, not three call sites downstream.
-//    - No UnityEditor dependency, so this file drops into any runtime assembly.
+//  The full contract — guarantees, teardown semantics, forbidden usages, known gaps — lives in
+//  Documentation~/contract.md. It is kept there rather than here because a header this far from
+//  the code it describes drifts out of date without anyone noticing.
 //
-//  GUARANTEES
-//    - MonoBehaviourSingleton<T>.Instance is non-null for the whole time the application is
-//      running. It is null only once shutdown has begun.
-//    - MonoBehaviourSingletonPassive<T>.Instance is null until some component's Awake claims the
-//      slot, and never auto-creates.
-//    - Nothing is created after Application.quitting has fired.
-//    - Nothing created in edit mode can be written to a scene or prefab (HideFlags.DontSave).
-//    - The cache is never stale: not across play sessions (session id), not across native
-//      destruction (Unity "fake null" is collapsed to a real null on read).
-//    - Duplicate resolution is deterministic — scene build index, then hierarchy path — so the
-//      same scene yields the same winner every run, and every loser is logged with its full path.
-//    - `class Foo : MonoBehaviourSingleton<Bar>` does not compile (CRTP constraint).
-//    - FramePromoted is never serialized.
-//    - Debug logging and debug name mutation compile out unless SINGLETON_DEBUG /
-//      SINGLETON_DEBUG_GET are defined.
-//    - Exactly one Application.quitting subscription regardless of domain-reload settings.
+//  Two rules the compiler will not enforce for you:
+//    - CRTP: class Foo : MonoBehaviourSingletonPersistent<Foo>
+//    - An Awake or OnDestroy override MUST call its base implementation. The base claims and
+//      releases the singleton slot; skipping it leaves the type silently non-functional.
 //
-//  CONSTRAINTS ON THE SUBCLASS
-//    - Must be CRTP: `class Foo : MonoBehaviourSingletonPersistent<Foo>`.
-//    - An Awake override must call base.Awake(); an OnDestroy override must call
-//      base.OnDestroy(). NOT compiler-enforced — the one place this design relies on discipline.
-//    - A non-default Resources path requires [SingletonResource("path")].
-//    - Persistent flavours accept being reparented to the scene root.
-//    - `Current` is read-only to subclasses; claim the slot via AssignInAwake or the lazy path.
-//    - Requires C# 8 (Unity 2020.2+). FindObjectsByType is gated at 2023.1 with a fallback.
-//
-//  FORBIDDEN USAGES
-//    - Field initialisers and MonoBehaviour constructors: Unity throws on Find and
-//      `new GameObject` there.
-//    - OnValidate and ISerializationCallbackReceiver: object creation during deserialisation is
-//      unsupported and can throw.
-//    - Any thread but the main thread.
-//    - OnDestroy / OnApplicationQuit without IsAvailable or TryGetInstance, where the object
-//      being reached for may already be gone. During shutdown Instance returns the destroyed
-//      component rather than null, so plain C# members are safe, but anything touching the
-//      native peer (transform, gameObject, StartCoroutine) still throws.
-//    - Caching Instance in your own static or serialised field. That bypasses both the session
-//      guard and the fake-null collapse — the exact bug class this file exists to prevent.
-//    - Reading Passive Instance from another object's Awake: Awake order is undefined, so that is
-//      a race. Use Start, OnEnable, or Script Execution Order.
-//    - Setting hideFlags on a singleton yourself; the find path depends on them.
-//    - Name-matching a singleton (GameObject.Find) in any build where SINGLETON_DEBUG may be on.
-//    - Sharing a GameObject with components you care about, on any flavour that deduplicates:
-//      the default blast radius is the whole GameObject (see DestroyWholeGameObject).
-//
-//  SIDE EFFECTS OF TOUCHING Instance
-//    - First access on the auto flavour may, in order: search every active object of the type,
-//      synchronously read from Resources, instantiate a prefab, create a GameObject, reparent it
-//      to root, and mark it DontDestroyOnLoad. Pay that at load, not mid-session on device.
-//    - If the lazy path creates the instance, that instance's Awake runs re-entrantly inside your
-//      Instance call.
-//    - Logs an error on duplicates. Throws MissingSingletonException on policy violation. Warns
-//      once per session on a teardown null.
-//    - In edit mode, adds a hierarchy object that vanishes on the next recompile.
-//
-//  KNOWN GAPS / ACCEPTED RISKS
-//    - Plain MonoBehaviourSingleton<T> has no Awake, so it never claims the slot or destroys
-//      duplicates — it picks one and logs. Two scene-authored instances both survive. Use the
-//      Persistent or Passive flavour if you want enforcement.
-//    - FindObjectsInactive.Exclude misses singletons on inactive objects; a duplicate can be
-//      created and will self-destruct only when the inactive one is enabled.
-//    - Edit-mode transients lose all state on every recompile.
-//    - s_resourceProbed means a Resources asset appearing after the first probe is not picked up
-//      for the rest of the session.
-//    - DestroyImmediate in edit mode can invalidate an enumeration you are inside.
-//    - Additive scene loads still produce a duplicate; it self-destructs, but its Awake has
-//      already run by then.
-//    - Not a substitute for dependency injection or explicit init order. If construction order
-//      between singletons matters, this file will not give it to you.
-//
+//  ERS0001 and ERS0005 flag the second one. Nothing flags the first, because it does not compile.
 // =============================================================================================
 
 //#define SINGLETON_DEBUG
