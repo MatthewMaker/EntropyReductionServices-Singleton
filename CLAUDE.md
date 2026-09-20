@@ -1,0 +1,112 @@
+# CLAUDE.md
+
+Working notes for this repository. Conventions here override general defaults.
+
+## What this repo is
+
+A Unity project whose only real content is the embedded package at
+`Packages/com.entropyreductionservices.singleton/`. The surrounding project exists so the package
+can be opened, compiled and tested by a real editor — it is a test harness, not an application.
+
+The package ships two things: the singleton base classes in `Runtime/`, and five Roslyn analyzers
+that enforce their contract in *consuming* assemblies.
+
+## Branching and releases
+
+**Trunk plus annotated tags.** Work on a short-lived branch off `main`, or directly on `main` for
+small fixes; merge fast-forward. No `develop`, no release branches.
+
+Release branches are deliberately not used: they exist so a team can stabilise a release while
+feature work continues elsewhere, and there is no parallel work here to stabilise against. If a
+patch is ever needed for an older minor after `main` has moved past it, cut `release/x.y` from that
+tag at that point — lazily, not as routine.
+
+A release is a version bump, a commit, and an annotated tag on `main`.
+
+### Release checklist
+
+Run in this order. Steps 2 and 3 are the ones that silently produce a broken package if skipped.
+
+1. **Update `CHANGELOG.md`** — rename the `[Unreleased]` heading to the new version, or add one.
+   Keep a Changelog format; `Changed`/`Fixed`/`Added`, breaking items marked **Breaking:**.
+2. **Bump the version in all three places** (see below). They are not checked against each other.
+3. **Rebuild and recommit the analyzer DLL.** The csproj stamps the version into the assembly, so
+   a version bump without a rebuild ships a binary claiming the old version.
+4. **Verify locally** — all four suites, below. CI cannot do this for you.
+5. **Commit**, then `git tag -a vX.Y.Z -m "..."`, then `git push origin main --follow-tags`.
+6. **Publish.** Distribution is a separate step from tagging; a tag alone does not make the
+   version available to consumers.
+
+### The three version locations
+
+| File | Field |
+|---|---|
+| `Packages/com.entropyreductionservices.singleton/package.json` | `"version"` |
+| `Packages/com.entropyreductionservices.singleton/Analyzers~/ERS.Singleton.Analyzers.csproj` | `<Version>` |
+| `Packages/com.entropyreductionservices.singleton/CHANGELOG.md` | the top `## [x.y.z]` heading |
+
+Semver against *consumers*. Raising `"unity"` (the minimum editor) drops support for a class of
+consumers and is a major bump — that is why 2.0.0 followed 1.0.2.
+
+## Verifying before a release
+
+The Unity job requires a `UNITY_LICENSE` secret to activate an editor; where that is unavailable
+the job cannot run and the analyzer job is the only CI signal. **Treat a local run as the gate**
+before tagging, rather than assuming CI has covered it.
+
+Note for zsh: paths containing `Analyzers~` must be quoted or the tilde is expanded and the `cd`
+fails.
+
+```sh
+# Run from the repo root. Each step is a subshell, so the cd does not carry into the next.
+PKG="Packages/com.entropyreductionservices.singleton"
+UNITY="/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app/Contents/MacOS/Unity"
+
+# 1. Analyzer builds clean. TreatWarningsAsErrors catches RS-prefixed authoring mistakes
+#    (unregistered rules, missing release tracking) that would otherwise ship silently.
+( cd "$PKG/Analyzers~" && dotnet build -c Release -p:TreatWarningsAsErrors=true )
+
+# 2. Rules actually fire. The analyzer resolves its base type by metadata name and registers no
+#    actions when that lookup misses, so "it built" says nothing about whether any rule works.
+( cd "$PKG/Analyzers~/Tests" && dotnet test -c Release )
+
+# 3. The committed DLL matches its source, checked behaviourally rather than by bytes.
+#    --no-incremental is required: an up-to-date build recompiles nothing, so the analyzer emits
+#    no warnings and the check reports zero rules firing, which looks exactly like total failure.
+#    Count unique ids, not lines — each warning is printed twice.
+cp "$PKG/Analyzers~/bin/Release/ERS.Singleton.Analyzers.dll" "$PKG/Runtime/Analyzers/"
+( cd "$PKG/Analyzers~/StalenessProbe" && dotnet build -c Release --no-incremental 2>&1 \
+    | grep -oE "warning ERS000[0-9]" | sort -u )     # expect ERS0001 through ERS0005
+
+# 4. Runtime behaviour, both platforms. Unity needs Assets/ and ProjectSettings/ present.
+"$UNITY" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode \
+  -testResults /tmp/edit.xml -logFile /tmp/edit.log
+"$UNITY" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform PlayMode \
+  -testResults /tmp/play.xml -logFile /tmp/play.log
+```
+
+Batchmode exits non-zero on failure; read the `<test-run>` attributes in the XML for counts.
+
+## Non-obvious repo facts
+
+- **`Analyzers~` and `Documentation~` end in `~`, so Unity never imports them.** The analyzer
+  *source* is therefore invisible to the editor; only the built DLL at
+  `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` is. That DLL is committed on purpose, and
+  `Analyzers~/StalenessProbe/` is what stops it drifting from its source.
+- **The analyzer applies to every assembly referencing the package**, which is Unity's documented
+  behaviour for an analyzer under a folder containing an `.asmdef`. That is why the DLL sits beside
+  the runtime asmdef and not at the package root. Consumers need no setup.
+- **The contract is `Documentation~/contract.md`**, not a source header. It was moved there after
+  drifting three times in one day; keep it updated in the same commit as any behaviour change.
+- **Test probes are one type per test.** The singleton cache is a static on the closed generic
+  type and the whole run shares one domain, so two tests sharing a probe type see each other's
+  state. EditMode probes need `[ExecuteAlways]` for `Awake`/`OnDestroy` to run outside play mode.
+- **Teardown windows cannot be simulated from a test.** `SingletonRuntime.IsQuitting` is driven by
+  `Application.quitting` and has no setter; the scene-unload window is a frame stamp, and a test
+  resuming after `UnloadSceneAsync` is already on a later frame. Assert from inside a probe's own
+  `OnDestroy` instead — see `Tests/PlayMode/SceneUnloadTests.cs`.
+- **CI**: the `analyzer` job runs on every push and PR, and is fast. The `unity` job runs only on
+  `main`, tags and manual dispatch, because it pulls a ~5 GB editor image and dominates the
+  workflow's runtime — a poor trade on every pull request. It uses the `base` editor image rather
+  than `il2cpp`, which exhausted the runner's disk, and targets one version matching the
+  `package.json` floor.
