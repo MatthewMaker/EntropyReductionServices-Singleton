@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unit tests for the analyzer rules, run by `dotnet test` and by CI.
+
+    These exist because the analyzer can fail completely without failing anything else: it
+    resolves its base type by metadata name at compilation start and registers no actions when
+    that lookup misses, so a wrong string disables all five rules while every build stays green.
+    That shipped once. Every test here therefore asserts a rule actually fires, not merely that
+    the analyzer loads.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!--
+      Targets net8.0 to match the SDK CI installs, but rolls forward so the same test project
+      also runs on a machine that only has a newer runtime installed.
+    -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+
+    <!--
+      The unsuffixed testing package with DefaultVerifier; the framework-suffixed variants
+      (…Testing.NUnit) are deprecated and pin Roslyn 1.0.1.
+
+      Microsoft.CodeAnalysis.CSharp must be referenced explicitly and must be at least the
+      version the analyzer itself compiles against, or the test project resolves the testing
+      package's much older transitive copy and the reference to the analyzer fails to load
+      with CS1705.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ERS.Singleton.Analyzers.csproj" />
+  </ItemGroup>
+
+</Project>

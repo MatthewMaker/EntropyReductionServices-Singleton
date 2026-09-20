@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Development project rules. The package ships every rule as a Warning so that a consumer's build
+  is never broken by a rule they did not opt into; here, where the rules are the product, the two
+  that describe hard breakage are escalated to Error.
+
+  DUPLICATED in Tests/PlayMode/Default.ruleset — edit both. Unity resolves rulesets per asmdef
+  folder and the one shareable Default.ruleset must live in the Assets root, which a UPM
+  package does not have, so there is no way to express this once.
+-->
+<RuleSet Name="Unity Singletons development rules" ToolsVersion="16.0">
+  <Rules AnalyzerId="ERS.Singleton.Analyzers" RuleNamespace="EntropyReductionServices.Analyzers">
+    <Rule Id="ERS0001" Action="Error" />
+    <Rule Id="ERS0002" Action="Warning" />
+    <Rule Id="ERS0003" Action="Warning" />
+    <Rule Id="ERS0004" Action="Error" />
+    <Rule Id="ERS0005" Action="Warning" />
+  </Rules>
+</RuleSet>

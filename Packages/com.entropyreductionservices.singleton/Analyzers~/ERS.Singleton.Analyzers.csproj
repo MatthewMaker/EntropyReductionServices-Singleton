@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unity loads analyzers as plain netstandard2.0 assemblies. Two hard requirements:
+      - TargetFramework MUST be netstandard2.0. Unity's compiler host will not load net6.0+.
+      - The Microsoft.CodeAnalysis.CSharp reference MUST NOT be copied next to the output.
+        PrivateAssets="all" is what keeps Microsoft.CodeAnalysis.*.dll out of bin, which matters
+        because shipping those alongside the analyzer breaks the host's assembly resolution.
+
+    Roslyn version: Unity 2021.3 / 2022.3 documentation specifies 3.8; Unity 6 documentation
+    specifies 4.3. An analyzer built against the older Roslyn loads on newer hosts, so 3.8 is the
+    default here for the widest coverage. Override per build:
+        dotnet build -c Release -p:RoslynVersion=4.3.0
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>ERS.Singleton.Analyzers</AssemblyName>
+    <RootNamespace>EntropyReductionServices.Analyzers</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <RoslynVersion Condition="'$(RoslynVersion)' == ''">3.8.0</RoslynVersion>
+    <Version>1.0.1</Version>
+
+    <!--
+      The built DLL is committed to the repo, so keep its content tied to the sources rather than
+      to who built it or when. Measured: with these set, builds of identical sources in different
+      directories, on different commits, with and without a git remote, come out byte-for-byte
+      identical. PathMap normalises the builder's absolute path out of the embedded debug record;
+      IncludeSourceRevisionInInformationalVersion stops the git SHA being stamped into the
+      assembly, which would otherwise churn the committed binary on every commit.
+
+      Two caveats keep this from being a CI gate. A different .NET SDK emits different bytes, and
+      one working copy was observed producing identical IL with differing debug-identity fields
+      (MVID, PDB checksum, PE timestamp). CI therefore checks the committed DLL by behaviour
+      instead; see StalenessProbe/.
+
+      ContinuousIntegrationBuild, DeterministicSourcePaths and EnableSourceLink were tried here
+      and removed: in a clean checkout they left the output byte-identical, and in the one working
+      copy where they did change it they still did not make it match any other machine. The first
+      two also cancelled out — ContinuousIntegrationBuild's main effect is to set
+      DeterministicSourcePaths, which needs a SourceLink-provided SourceRoot and had to be
+      switched off again on the next line to build at all.
+    -->
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The default glob would otherwise sweep the sibling projects' sources into the analyzer. -->
+    <Compile Remove="Tests/**" />
+    <Compile Remove="StalenessProbe/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Release tracking satisfies RS2008 and gives the rule set a changelog. -->
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

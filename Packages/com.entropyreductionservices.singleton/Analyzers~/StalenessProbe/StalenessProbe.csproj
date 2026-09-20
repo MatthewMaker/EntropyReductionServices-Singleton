@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles a deliberately contract-violating file against the COMMITTED analyzer DLL — the
+    artifact consumers actually get — and CI fails if the expected diagnostics do not appear.
+
+    This replaces a byte-for-byte comparison of the committed DLL against a fresh build, which
+    cannot work: the SDK stamps the git commit into the assembly and Roslyn varies the MVID and
+    PE timestamp between builds, so the comparison failed even on identical sources. Behaviour is
+    both the thing worth checking and the thing that can actually be checked.
+
+    Referencing the DLL as an Analyzer (not a ProjectReference) is the point — a stale binary
+    fails here even when the sources next door are perfect.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- The probe is meant to emit warnings; they must not become errors. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CS0169;CS0649;CS0414</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Analyzer Include="../../Runtime/Analyzers/ERS.Singleton.Analyzers.dll" />
+  </ItemGroup>
+
+</Project>

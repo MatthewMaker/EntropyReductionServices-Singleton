@@ -1,0 +1,4 @@
+# Build output for the analyzer and its sibling test/probe projects. Kept here so the rule stays
+# correct as projects are added, rather than as path literals in the Unity .gitignore at the root.
+bin/
+obj/
