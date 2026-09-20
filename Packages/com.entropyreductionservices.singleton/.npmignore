@@ -1,0 +1,11 @@
+# OpenUPM clones this repository at each versioned tag and runs `npm pack` from the folder
+# holding package.json, so npm's packing rules decide what consumers receive.
+#
+# A deny list rather than a package.json "files" allow list: Unity needs a .meta file beside
+# every shipped asset, and an allow list that misses one produces a package that imports with
+# regenerated GUIDs and broken references — a failure that is invisible until someone installs it.
+
+# The analyzer's source, unit tests and staleness probe. Consumers need only the built assembly
+# at Runtime/Analyzers/ERS.Singleton.Analyzers.dll, which ships. Shipping the sources would also
+# drop three .csproj files into a consumer's package cache for their IDE to discover.
+Analyzers~/

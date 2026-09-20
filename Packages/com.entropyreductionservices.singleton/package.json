@@ -5,12 +5,18 @@
   "description": "MonoBehaviour singleton base classes that survive domain reload, scene loads and application shutdown, with Roslyn analyzers that enforce the contract in consuming assemblies.",
   "unity": "6000.3",
   "license": "MIT",
-  "keywords": ["singleton", "analyzer", "roslyn", "lifecycle", "utility"],
+  "keywords": [
+    "singleton",
+    "analyzer",
+    "roslyn",
+    "lifecycle",
+    "utility"
+  ],
   "author": {
     "name": "Matthew Maker",
     "url": "https://github.com/MatthewMaker"
   },
-  "documentationUrl": "https://github.com/MatthewMaker/EntropyReductionServices-Singleton",
+  "documentationUrl": "https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/contract.md",
   "changelogUrl": "https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/CHANGELOG.md",
   "licensesUrl": "https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/LICENSE"
 }

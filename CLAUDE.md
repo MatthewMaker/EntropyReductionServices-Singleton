@@ -34,8 +34,9 @@ Run in this order. Steps 2 and 3 are the ones that silently produce a broken pac
    a version bump without a rebuild ships a binary claiming the old version.
 4. **Verify locally** — all four suites, below. CI cannot do this for you.
 5. **Commit**, then `git tag -a vX.Y.Z -m "..."`, then `git push origin main --follow-tags`.
-6. **Publish.** Distribution is a separate step from tagging; a tag alone does not make the
-   version available to consumers.
+6. **Publishing is automatic.** Pushing the tag triggers `.github/workflows/openupm.yml`, which
+   tells OpenUPM to build and publish that version. Check the workflow result rather than
+   assuming — a tag whose version does not match `package.json` is rejected at that point.
 
 ### The three version locations
 
@@ -105,6 +106,12 @@ Batchmode exits non-zero on failure; read the `<test-run>` attributes in the XML
   `Application.quitting` and has no setter; the scene-unload window is a frame stamp, and a test
   resuming after `UnloadSceneAsync` is already on a later frame. Assert from inside a probe's own
   `OnDestroy` instead — see `Tests/PlayMode/SceneUnloadTests.cs`.
+- **Distribution is OpenUPM.** It clones this repo at each `v*` tag and runs `npm pack` in the
+  package folder, so that folder's `.npmignore` decides what consumers receive — currently
+  everything except `Analyzers~/`, whose only consumer-relevant output is the committed DLL under
+  `Runtime/`. Verify a change to it with `npm pack --dry-run` from the package folder. Unity needs
+  a `.meta` beside every shipped asset, which is why the ignore file is a deny list rather than a
+  `package.json` `"files"` allow list.
 - **CI**: the `analyzer` job runs on every push and PR, and is fast. The `unity` job runs only on
   `main`, tags and manual dispatch, because it pulls a ~5 GB editor image and dominates the
   workflow's runtime — a poor trade on every pull request. It uses the `base` editor image rather

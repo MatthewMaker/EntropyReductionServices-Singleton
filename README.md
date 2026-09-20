@@ -29,7 +29,9 @@ AudioBus.Instance.Play(clip);               // non-null the whole time the app i
 
 private void OnDestroy()
 {
-    if (AudioBus.TryGetInstance(out var bus)) bus.Unregister(this);   // null once shutdown begins
+    // During teardown Instance returns the destroyed component rather than null, so managed
+    // calls are safe. Guard anything that touches the GameObject.
+    if (AudioBus.TryGetInstance(out var bus)) bus.Unregister(this);
 }
 ```
 
