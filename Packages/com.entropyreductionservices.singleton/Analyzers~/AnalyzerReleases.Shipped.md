@@ -2,6 +2,13 @@
 ; the table format is strict — no blank line after the section heading. See
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 
+## Release 2.1.0
+
+### New Rules
+Rule ID | Category | Severity | Notes
+--------|----------|----------|--------------------
+ERS0006 | Singleton | Warning | Null-conditional access on a lazy singleton's Instance is misleading. [Documentation](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#ers0006)
+
 ## Release 1.0.0
 
 ### New Rules

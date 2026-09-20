@@ -4,6 +4,21 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0]
+
+### Added
+
+- `ERS0006` — reports `Instance?.Foo()` on a lazy singleton (`MonoBehaviourSingleton<T>` and
+  `MonoBehaviourSingletonPersistent<T>`), where the accessor resolves, creates, or throws and so
+  never returns null while the application is running. The operator is dead there, and during
+  teardown it does not guard anything, so it only misinforms the reader.
+
+  **Passive singletons are not reported.** `MonoBehaviourSingletonPassive<T>.Instance` is null
+  until a component's `Awake` claims the slot, so `?.` on one is a correct guard.
+
+  A `?.` inside `OnDestroy` or `OnApplicationQuit` continues to raise `ERS0003` alone; the two
+  rules are mutually exclusive.
+
 ## [2.0.1]
 
 ### Fixed
