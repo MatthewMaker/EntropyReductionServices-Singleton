@@ -5,6 +5,11 @@
 # every shipped asset, and an allow list that misses one produces a package that imports with
 # regenerated GUIDs and broken references — a failure that is invisible until someone installs it.
 
+# Tests/ is deliberately NOT excluded, though it is the bulk of the file count. Shipping tests is
+# conventional for a Unity package, and the asmdefs are gated on UNITY_INCLUDE_TESTS, so they do
+# not compile in a consumer's project unless they opt in by listing the package under `testables`.
+# They also make the contract's edge cases readable to anyone deciding whether to trust it.
+
 # The analyzer's source, unit tests and staleness probe. Consumers need only the built assembly
 # at Runtime/Analyzers/ERS.Singleton.Analyzers.dll, which ships. Shipping the sources would also
 # drop three .csproj files into a consumer's package cache for their IDE to discover.
