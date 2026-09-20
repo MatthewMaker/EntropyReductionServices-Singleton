@@ -136,6 +136,11 @@ git config core.hooksPath .githooks
 - **Two `Default.ruleset` copies exist on purpose.** Unity resolves rulesets per asmdef folder,
   and the single shareable `Default.ruleset` must sit in an `Assets` root that a UPM package does
   not have. They are generated rather than hand-synced — see Analyzer severities above.
+- **Both workflows are currently disabled** (`disabled_manually`), because neither can pass yet:
+  the `unity` job exhausts the runner's disk pulling the editor image and has no `UNITY_LICENSE`,
+  and the OpenUPM workflow returns `404 PackageNotFound` until the package is registered, which
+  needs the repo to be public. Re-enable with `gh workflow enable CI` / `gh workflow enable
+  OpenUPM`. The workflow files are untouched, so this is a switch, not a revert.
 - **CI**: the `analyzer` job runs on every push and PR, and is fast. The `unity` job runs only on
   `main`, tags and manual dispatch, because it pulls a ~5 GB editor image and dominates the
   workflow's runtime — a poor trade on every pull request. It uses the `base` editor image rather
