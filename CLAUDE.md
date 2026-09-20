@@ -88,6 +88,27 @@ cp "$PKG/Analyzers~/bin/Release/ERS.Singleton.Analyzers.dll" "$PKG/Runtime/Analy
 
 Batchmode exits non-zero on failure; read the `<test-run>` attributes in the XML for counts.
 
+## Analyzer severities
+
+`.editorconfig` at the repo root is the source of truth. The two `Default.ruleset` files under
+`Packages/.../Tests/` are **generated** from it:
+
+```sh
+python3 scripts/sync-analyzer-severities.py            # regenerate after editing .editorconfig
+python3 scripts/sync-analyzer-severities.py --check     # exit 1 if drifted
+```
+
+Both formats are required and neither is redundant: IDEs read `.editorconfig`, while Unity ignores
+it when running analyzers through the Editor and reads the ruleset instead. Configure one and the
+Console and the IDE quietly disagree about severities.
+
+`--check` runs in the CI analyzer job and in `.githooks/pre-commit`. Enable the hook once per
+clone — git does not version `.git/hooks`:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 ## Non-obvious repo facts
 
 - **`Analyzers~` and `Documentation~` end in `~`, so Unity never imports them.** The analyzer
@@ -112,6 +133,9 @@ Batchmode exits non-zero on failure; read the `<test-run>` attributes in the XML
   `Runtime/`. Verify a change to it with `npm pack --dry-run` from the package folder. Unity needs
   a `.meta` beside every shipped asset, which is why the ignore file is a deny list rather than a
   `package.json` `"files"` allow list.
+- **Two `Default.ruleset` copies exist on purpose.** Unity resolves rulesets per asmdef folder,
+  and the single shareable `Default.ruleset` must sit in an `Assets` root that a UPM package does
+  not have. They are generated rather than hand-synced — see Analyzer severities above.
 - **CI**: the `analyzer` job runs on every push and PR, and is fast. The `unity` job runs only on
   `main`, tags and manual dispatch, because it pulls a ~5 GB editor image and dominates the
   workflow's runtime — a poor trade on every pull request. It uses the `base` editor image rather

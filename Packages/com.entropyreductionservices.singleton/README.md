@@ -55,6 +55,11 @@ package — no setup, no asset labels, nothing copied into `Assets`. They catch 
 compiler cannot: a missing `base.Awake()`, caching `Instance` in a field, unguarded teardown
 access, construction-time access, and `Awake` declared without `override`.
 
+All five ship as **warnings**, never errors, because they arrive with your first reference to the
+package rather than by opt-in. Retune or switch any of them off with a `Default.ruleset` in your
+`Assets` root — `<Rule Id="ERS0003" Action="None" />` disables one outright. See
+[analyzers.md](Documentation~/analyzers.md#turning-them-off).
+
 ## Documentation
 
 - [contract.md](Documentation~/contract.md) — the normative contract: guarantees, teardown

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Refuses a commit whose analyzer rulesets have drifted from .editorconfig.
+#
+# Enable once per clone — git does not version .git/hooks, so this directory has to be pointed at:
+#
+#     git config core.hooksPath .githooks
+#
+# CI runs the same check, so a clone that never enables the hook is still caught; the hook only
+# moves the failure earlier. Bypass with --no-verify if you genuinely need to.
+
+if ! python3 scripts/sync-analyzer-severities.py --check; then
+    echo
+    echo "pre-commit: analyzer severities are out of sync. Regenerate, stage, and commit again."
+    exit 1
+fi

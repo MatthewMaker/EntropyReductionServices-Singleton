@@ -1,0 +1,45 @@
+# Analyzer severities for this repository, and the source of truth for them.
+#
+# Both this file and the Default.ruleset files under Packages/.../Tests/ express the same policy,
+# because neither one is enough on its own: IDEs (Rider, Visual Studio, OmniSharp) read
+# .editorconfig, while Unity ignores it when it runs analyzers through the Editor and reads the
+# ruleset instead. Configure only one and the Console and the IDE disagree about severities.
+#
+# Edit the ERS severities HERE, then regenerate the rulesets:
+#
+#     python3 scripts/sync-analyzer-severities.py
+#
+# scripts/sync-analyzer-severities.py --check fails if they have drifted; the pre-commit hook in
+# .githooks/ and the CI analyzer job both run it.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,csproj,ruleset}]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,md}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false   # two trailing spaces are a hard line break
+
+[*.cs]
+# Singleton analyzer rules. This block is parsed by scripts/sync-analyzer-severities.py.
+# Severities: error | warning | suggestion | silent | none
+#
+# The package ships every rule as a warning so a consumer's build is never broken by a rule they
+# did not opt into. Here, where the rules are the product, the two describing hard breakage are
+# escalated so a regression fails the development build rather than scrolling past.
+dotnet_diagnostic.ERS0001.severity = error       # missing base call — singleton never registers
+dotnet_diagnostic.ERS0002.severity = warning     # Instance cached in a field
+dotnet_diagnostic.ERS0003.severity = warning     # unguarded teardown access
+dotnet_diagnostic.ERS0004.severity = error       # access during MonoBehaviour construction
+dotnet_diagnostic.ERS0005.severity = warning     # message hides the base instead of overriding

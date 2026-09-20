@@ -114,6 +114,32 @@ Place a `Default.ruleset` in your project's `Assets` root:
 Per-assembly overrides use `[AssemblyName].ruleset` alongside the `.asmdef`. Single sites use
 `#pragma warning disable ERS0003` as usual.
 
+## Turning them off
+
+`Action="None"` disables a rule outright. There is no hard feeling about this — the rules ship
+enabled because they arrive with your first reference to the package, not because you are expected
+to keep all of them.
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="Project rules" ToolsVersion="16.0">
+  <Rules AnalyzerId="ERS.Singleton.Analyzers" RuleNamespace="EntropyReductionServices.Analyzers">
+    <Rule Id="ERS0001" Action="None" />
+    <Rule Id="ERS0002" Action="None" />
+    <Rule Id="ERS0003" Action="None" />
+    <Rule Id="ERS0004" Action="None" />
+    <Rule Id="ERS0005" Action="None" />
+  </Rules>
+</RuleSet>
+```
+
+**Use a ruleset, not `.editorconfig`.** `dotnet_diagnostic.ERS0001.severity` is the modern idiom
+and your IDE will honour it, but Unity ignores `.editorconfig` when it runs analyzers through the
+Editor ([issue 14549](https://discussions.unity.com/t/editorconfig-files-are-ignored-when-a-roslyn-analyzer-is-running-through-the-editor-14549/1727662)).
+Configure severities there and they will appear to work in Rider or Visual Studio while the Unity
+Console keeps reporting the originals. This repository maintains both files for exactly that
+reason, and keeps them in sync mechanically — see `scripts/sync-analyzer-severities.py`.
+
 ## Rebuilding
 
 Source lives in `Analyzers~/` — the trailing tilde keeps Unity from importing and trying to compile
