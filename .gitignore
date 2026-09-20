@@ -114,5 +114,9 @@ InitTestScene*.unity*
 # the analyzer and its two sibling projects — are therefore tracked without needing a negation,
 # and they carry their own .gitignore for build output.
 
+# Visual Studio Code workspace settings. Generated on first open and personal to each
+# checkout; the template above only covers Visual Studio proper (.vs/).
+.vscode/
+
 # macOS
 .DS_Store
