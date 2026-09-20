@@ -117,8 +117,10 @@ private void OnDisable()
 
 The limit is worth knowing. That reference is a destroyed `UnityEngine.Object`, so anything
 reaching the native peer — `transform`, `gameObject`, `enabled`, `StartCoroutine` — raises
-`MissingReferenceException`. Unity's `==` overload also still reports it as null, which is what
-keeps every `!= null` check and `?.` call site meaning what it always meant. So teardown code that
+`MissingReferenceException`. Unity's `==` overload still reports it as null, so `!= null` checks
+keep the meaning they always had — but **`?.` does not**. `?.` tests the reference rather than
+consulting the overload, and the destroyed component is a live C# object, so the call goes through.
+It reads as a guard and is not one; ERS0003 reports it. So teardown code that
 touches more than managed state — `OnDestroy`, `OnApplicationQuit`, coroutine cleanup,
 pooled-object return paths — still checks first:
 
@@ -129,13 +131,15 @@ private void OnDestroy()
 }
 ```
 
-Three ways to ask whether a *live* singleton exists, all equivalent in effect:
+Two ways to ask whether a *live* singleton exists, equivalent in effect:
 
 ```csharp
 if (AudioBus.IsAvailable) AudioBus.Instance.Stop();
 if (AudioBus.TryGetInstance(out var bus)) bus.Stop();
-AudioBus.Instance?.Stop();
 ```
+
+Both consult Unity's `==` overload. `AudioBus.Instance?.Stop()` does not, and is not a third
+option — see above.
 
 Everywhere else, dereference directly. Defensive null checks in `Update` are noise.
 

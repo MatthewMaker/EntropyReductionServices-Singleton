@@ -68,10 +68,14 @@ possibility, use one of:
 ```csharp
 if (AudioBus.IsAvailable) AudioBus.Instance.Stop();
 if (AudioBus.TryGetInstance(out var bus)) bus.Stop();
-AudioBus.Instance?.Stop();
 ```
 
-Only direct dereferences are reported. The whole method is exempted when it mentions `IsAvailable`
+**Not `AudioBus.Instance?.Stop()`.** `?.` tests the reference rather than Unity's `==` overload,
+and during teardown `Instance` hands back the destroyed component — a live C# object — so the call
+proceeds. It reads as a guard and is not one, which is why it is reported rather than exempt.
+
+Both a plain dereference and a `?.` dereference are reported; a bare read that is passed along or
+compared is not. The whole method is exempted when it mentions `IsAvailable`
 or `TryGetInstance` anywhere — deliberately crude, so the exemption is predictable rather than
 dependent on the analyzer's flow analysis agreeing with yours.
 

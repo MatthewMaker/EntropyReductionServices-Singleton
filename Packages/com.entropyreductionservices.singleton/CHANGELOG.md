@@ -4,6 +4,24 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1]
+
+### Fixed
+
+- `ERS0003` now reports `Instance?.Foo()` inside a teardown callback instead of exempting it, and
+  no longer suggests `?.` as a remedy. **`?.` is not a guard against the teardown value.** It
+  tests the reference rather than consulting Unity's `==` overload, and since 1.0.1 `Instance`
+  returns the destroyed component — a live C# object — so the call proceeds where it would
+  previously have short-circuited against a real null. A call that touches the native peer
+  therefore raises `MissingReferenceException` where nothing happened before 1.0.1.
+
+  The 1.0.1 entry below states that `?.` call sites keep their prior meaning. That was wrong, and
+  the documentation repeated it. `IsAvailable` and `TryGetInstance` consult the overload and were
+  always correct; `!= null` is also unaffected.
+
+  No runtime behaviour changed in this release — the analyzer and the documentation were wrong
+  about it, not the runtime.
+
 ## [2.0.0]
 
 ### Changed

@@ -42,7 +42,8 @@ private void OnDestroy()
 
 The exception is not negotiable — recreating a singleton during teardown leaks objects into an
 unloading scene and, on device, can touch XR or audio subsystems that have already shut down. So
-teardown code asks first, via `IsAvailable`, `TryGetInstance`, or `?.`. Everywhere else,
+teardown code asks first, via `IsAvailable` or `TryGetInstance` — not `?.`, which tests the
+reference rather than Unity's `==` overload and so is not a guard here. Everywhere else,
 dereference directly.
 
 Anything other than shutdown that would produce a null throws `MissingSingletonException` naming

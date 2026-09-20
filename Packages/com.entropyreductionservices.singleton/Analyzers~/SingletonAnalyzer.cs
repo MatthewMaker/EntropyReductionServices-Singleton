@@ -319,12 +319,21 @@ namespace EntropyReductionServices.Analyzers
                 methodName));
         }
 
-        /// <summary>True for 'Foo.Instance.Bar', false for 'Foo.Instance?.Bar' and bare reads.</summary>
+        /// <summary>
+        /// True for 'Foo.Instance.Bar' and 'Foo.Instance?.Bar', false for bare reads.
+        ///
+        /// '?.' used to be exempt, on the reasoning that it collapses to a no-op when Instance is
+        /// null. That stopped being true when Instance began returning the destroyed component
+        /// during teardown rather than null: '?.' tests the reference, not Unity's == overload, so
+        /// it sees a live C# object and proceeds. It is now the most dangerous of the three
+        /// spellings, because it reads as a guard and is not one. IsAvailable and TryGetInstance
+        /// both consult the overload and still work.
+        /// </summary>
         private static bool IsDereferenced(MemberAccessExpressionSyntax access)
         {
             if (access.Parent is ConditionalAccessExpressionSyntax conditional &&
                 conditional.Expression == access)
-                return false;
+                return true;
 
             return access.Parent is MemberAccessExpressionSyntax parent && parent.Expression == access;
         }

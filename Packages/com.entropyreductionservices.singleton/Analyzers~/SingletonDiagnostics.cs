@@ -67,15 +67,19 @@ namespace EntropyReductionServices.Analyzers
         public static readonly DiagnosticDescriptor UnguardedTeardownAccess = new DiagnosticDescriptor(
             id: "ERS0003",
             title: "Guard singleton access in teardown callbacks",
-            messageFormat: "'{0}' dereferences '{1}.Instance' inside '{2}', where it is allowed to " +
-                           "be null; test IsAvailable, use TryGetInstance, or use '?.'",
+            messageFormat: "'{0}' dereferences '{1}.Instance' inside '{2}', where no live " +
+                           "singleton is guaranteed; test IsAvailable or use TryGetInstance",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true,
-            description: "Instance is non-null for the whole time the application is running and " +
-                         "null only once shutdown has begun, because recreating a singleton during " +
-                         "teardown leaks objects into an unloading scene and can touch subsystems " +
-                         "that have already shut down.",
+            description: "A live singleton exists for the whole time the application is running " +
+                         "and none exists during teardown, because recreating one then leaks " +
+                         "objects into a scene that is going away and can touch subsystems that " +
+                         "have already shut down. During teardown Instance returns the destroyed " +
+                         "component, so managed calls are safe but anything touching the native " +
+                         "peer throws. Note that '?.' is not a guard here: it tests the reference " +
+                         "and the destroyed component is a live C# object, so it proceeds. Use " +
+                         "IsAvailable or TryGetInstance, which consult Unity's == overload.",
             helpLinkUri: HelpBase + "ers0003");
 
         /// <summary>

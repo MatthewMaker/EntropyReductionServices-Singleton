@@ -200,14 +200,32 @@ namespace Client
     }
 }");
 
+        /// <summary>
+        /// '?.' reads as a guard and is not one. It tests the reference, and during teardown
+        /// Instance hands back the destroyed component — a live C# object — so the call proceeds.
+        /// This was exempt until the teardown semantics changed; it is now the spelling most
+        /// likely to be wrong, so it must be reported.
+        /// </summary>
         [Test]
-        public Task ERS0003_NullConditionalAccess_IsClean() => Harness.Verify(@"
+        public Task ERS0003_NullConditionalAccess_IsReported() => Harness.Verify(@"
 namespace Client
 {
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void OnDestroy() { Bus.Instance?.Stop(); }
+        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.Stop(); }
+    }
+}");
+
+        /// <summary>Outside teardown a live singleton is guaranteed, so '?.' is unremarkable.</summary>
+        [Test]
+        public Task ERS0003_NullConditionalAccessOutsideTeardown_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void Update() { Bus.Instance?.Stop(); }
     }
 }");
 

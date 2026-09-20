@@ -50,10 +50,16 @@ jobs:
           # the builder's path — but it still breaks on any .NET SDK patch bump, and one working
           # copy was seen emitting identical IL with differing MVID and PDB checksum. Behaviour
           # is the property worth protecting, and it survives both.
+          # --no-incremental: an up-to-date build recompiles nothing and emits no diagnostics,
+          # which would look identical to every rule being broken.
+          #
+          # The severity is not matched on. This project pins the rules to warning via its own
+          # .editorconfig, but the check is about whether a rule FIRES, and tying it to one
+          # severity turns a severity change into a mystifying CI failure.
           set -o pipefail
-          dotnet build -c Release 2>&1 | tee build.log
+          dotnet build -c Release --no-incremental 2>&1 | tee build.log
           for rule in ERS0001 ERS0002 ERS0003 ERS0004 ERS0005; do
-            grep -q "warning $rule" build.log || missing="$missing $rule"
+            grep -qE "(warning|error) $rule" build.log || missing="$missing $rule"
           done
           [ -z "$missing" ] || {
             echo "::error::Did not fire against the committed analyzer DLL:$missing — rebuild it with" \

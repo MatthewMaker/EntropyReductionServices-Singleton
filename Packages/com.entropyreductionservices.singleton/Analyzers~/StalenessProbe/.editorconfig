@@ -1,0 +1,14 @@
+# The probe compiles a file of deliberate contract violations against the COMMITTED analyzer DLL
+# and asserts every rule still fires. It therefore must not inherit the repository's escalated
+# severities from /.editorconfig: ERS0001 and ERS0004 are errors there, which fails this build
+# before it can report anything.
+#
+# Pinned to warning rather than turned off — the diagnostics are the output of this project.
+# Deliberately not `root = true`, so charset and indent settings still come from the root file.
+
+[*.cs]
+dotnet_diagnostic.ERS0001.severity = warning
+dotnet_diagnostic.ERS0002.severity = warning
+dotnet_diagnostic.ERS0003.severity = warning
+dotnet_diagnostic.ERS0004.severity = warning
+dotnet_diagnostic.ERS0005.severity = warning

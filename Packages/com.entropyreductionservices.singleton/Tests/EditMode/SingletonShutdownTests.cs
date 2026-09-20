@@ -69,6 +69,29 @@ namespace EntropyReductionServices.Singletons.Tests
             Assert.IsTrue(tombstone == null, "Unity equality should still call it null");
         }
 
+        /// <summary>
+        /// Pins the sharp edge of the shutdown allowance: '?.' is NOT a guard against the
+        /// tombstone. It tests the reference, and the destroyed component is a live C# object, so
+        /// the call goes through — the opposite of what it does against a real null.
+        ///
+        /// This is exactly why ERS0003 reports '?.' rather than exempting it, and why the docs
+        /// steer to IsAvailable and TryGetInstance, both of which consult Unity's == overload.
+        /// </summary>
+        [Test]
+        public void NullConditional_OnTheTombstone_StillInvokes()
+        {
+            TombstoneReachable.Bumps = 0;
+            Object.DestroyImmediate(TombstoneReachable.Instance.gameObject);
+
+            var tombstone = TombstoneReachable.Exposed;
+            Assert.IsTrue(tombstone == null, "precondition: Unity equality calls it null");
+
+            tombstone?.Bump();
+
+            Assert.AreEqual(1, TombstoneReachable.Bumps,
+                "'?.' tests the reference, so it invokes rather than short-circuiting");
+        }
+
         /// <summary>The passive flavour shares the tombstone, since it shares the base's cache.</summary>
         [Test]
         public void LastKnown_OnPassiveFlavour_SurvivesDestruction()

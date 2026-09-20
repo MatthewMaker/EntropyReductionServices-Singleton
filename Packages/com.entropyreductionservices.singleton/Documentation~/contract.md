@@ -55,11 +55,12 @@ What that buys you and what it does not:
 |---|---|
 | Plain C# members on the returned object | Work. Lists, dictionaries, events, plain fields. |
 | Members touching the native peer | Throw `MissingReferenceException`: `transform`, `gameObject`, `enabled`, `StartCoroutine`. |
-| `Instance != null` and `?.` | Unchanged. Unity's `==` overload still reports the tombstone as null. |
+| `Instance != null` | Unchanged. Unity's `==` overload still reports the tombstone as null. |
+| `Instance?.Foo()` | **Not a guard.** `?.` tests the reference, not the `==` overload, and the destroyed component is a live C# object — so the call proceeds. ERS0003 reports it. |
 | `IsAvailable`, `Exists`, `TryGetInstance` | Answer whether a *live* singleton exists, so they go false while `Instance` still returns a reference. |
 
 So an `OnDisable` that unregisters itself from a manager needs no guard. Teardown code that touches
-more than managed state still does.
+more than managed state still does — via `IsAvailable` or `TryGetInstance`, never `?.`.
 
 ## Constraints on the subclass
 
