@@ -92,14 +92,18 @@ picks one instance and logs the others. If you want enforcement, use a persisten
 
 ## The contract
 
-> A live singleton exists for the entire time the application is running, and none exists once
-> shutdown has begun. `Instance` never returns null once the singleton has existed: during
-> shutdown it hands back the destroyed component instead.
+> A live singleton exists for the entire time the application is running, and none exists during
+> teardown. `Instance` never returns null once the singleton has existed: during teardown it
+> hands back the destroyed component instead.
 
-The first half is not negotiable — recreating a singleton during teardown is the crash described
-above. The second half is what keeps teardown code from having to be defensive about the most
-common case. Once shutdown begins, `Instance` returns the component that held the slot, still a
-live C# object even though its native peer is gone. Calling a plain C# member on it works:
+**Teardown** means two windows. The application is quitting, or a scene unload has destroyed the
+singleton — for the rest of that frame. In both, `Instance` refuses to build a replacement,
+because recreating a singleton then drops a GameObject into a scene that is going away and runs
+its `Awake` against subsystems that may already be shutting down. That half is not negotiable.
+
+The other half is what keeps teardown code from having to be defensive about the common case.
+`Instance` returns the component that held the slot, still a live C# object even though its native
+peer is gone. Calling a plain C# member on it works:
 
 ```csharp
 private void OnDisable()
@@ -132,7 +136,7 @@ AudioBus.Instance?.Stop();
 
 Everywhere else, dereference directly. Defensive null checks in `Update` are noise.
 
-Anything *other* than shutdown that would produce a null throws `MissingSingletonException`
+Anything *other* than teardown that would produce a null throws `MissingSingletonException`
 instead, naming the type and the reason. A configuration mistake should fail where you made it, not
 as a `NullReferenceException` in unrelated code forty frames later.
 

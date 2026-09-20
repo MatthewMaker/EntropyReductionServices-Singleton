@@ -70,6 +70,57 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class PassivePersistentDuplicate : MonoBehaviourSingletonPassivePersistent<PassivePersistentDuplicate> { }
     internal class PassivePersistentSurvives : MonoBehaviourSingletonPassivePersistent<PassivePersistentSurvives> { }
 
+    // --- Scene-unload teardown ------------------------------------------------------------------
+
+    /// <summary>
+    /// Witnesses the teardown window from inside its own OnDestroy, which is the only vantage
+    /// point that sees it: the window is a frame stamp, and a test resuming after
+    /// UnloadSceneAsync is already on a later frame. Reading Instance here — immediately after
+    /// base.OnDestroy has released the slot — reproduces exactly the hazard the guard exists for.
+    ///
+    /// Generic so each test gets its own closed type, and therefore its own statics, without the
+    /// body being copied per test. Both the singleton cache and the counters below are statics on
+    /// the closed generic, so two tests sharing one concrete type would see each other's state.
+    /// </summary>
+    internal abstract class TeardownWitness<T> : MonoBehaviourSingleton<T> where T : TeardownWitness<T>
+    {
+        public static bool SawWindow;
+        public static bool WasAvailable = true;
+        public static bool GotTombstone;
+        public static bool GotFreshObject;
+        public static int Destroys;
+
+        /// <summary>True when the read inside OnDestroy is wanted; off for ordinary-destroy tests,
+        /// where resurrecting is correct behaviour and would leak a probe into the next test.</summary>
+        protected virtual bool ReadsInstance => true;
+
+        protected override void OnDestroy()
+        {
+            base.OnDestroy();                       // releases the slot, reports the unload
+
+            Destroys++;
+            SawWindow = SingletonRuntime.IsUnloadingScene;
+            WasAvailable = IsAvailable;
+
+            if (!ReadsInstance) return;
+
+            var got = Instance;                     // the read that used to resurrect
+            GotTombstone = ReferenceEquals(got, this);
+            GotFreshObject = !ReferenceEquals(got, this) && !ReferenceEquals(got, null);
+        }
+    }
+
+    internal class UnloadTombstoneWitness : TeardownWitness<UnloadTombstoneWitness> { }
+    internal class UnloadAvailabilityWitness : TeardownWitness<UnloadAvailabilityWitness> { }
+
+    internal class UnloadIndividualWitness : TeardownWitness<UnloadIndividualWitness>
+    {
+        protected override bool ReadsInstance => false;
+    }
+
+    internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
+    internal class UnloadDdolSurvivesFilter : MonoBehaviourSingletonPersistent<UnloadDdolSurvivesFilter> { }
+
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }

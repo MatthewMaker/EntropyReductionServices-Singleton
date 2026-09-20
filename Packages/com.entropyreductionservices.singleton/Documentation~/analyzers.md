@@ -58,11 +58,12 @@ private void Update()
 
 ## ers0003 — guard teardown access
 
-A live singleton exists for the whole time the application is running, and none exists once
-shutdown has begun. `Instance` still returns a reference then — the destroyed component, so plain
-C# calls on it work — but anything touching the native peer (`transform`, `gameObject`,
-`StartCoroutine`) raises `MissingReferenceException`. Inside `OnDestroy` and `OnApplicationQuit`,
-where that is a live possibility, use one of:
+A live singleton exists for the whole time the application is running, and none exists during
+teardown — application quit, or the frame in which a scene unload destroyed it. `Instance` still
+returns a reference then — the destroyed component, so plain C# calls on it work — but anything
+touching the native peer (`transform`, `gameObject`, `StartCoroutine`) raises
+`MissingReferenceException`. Inside `OnDestroy` and `OnApplicationQuit`, where that is a live
+possibility, use one of:
 
 ```csharp
 if (AudioBus.IsAvailable) AudioBus.Instance.Stop();

@@ -4,6 +4,26 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2]
+
+### Fixed
+
+- A singleton is no longer resurrected during a scene unload. Reading `Instance` after the
+  singleton had been destroyed but before the unload finished walked the full resolution chain
+  and built a replacement `GameObject` inside the scene being unloaded, running its `Awake`
+  against subsystems that may already be shutting down. Teardown now covers both windows —
+  application quit, and the frame in which a scene unload destroyed the singleton — and behaves
+  identically in each, handing back the destroyed component rather than creating.
+- `IsAvailable` no longer reports `true` during a scene unload. Its shortcut for play mode was
+  only correct because `Instance` creates on demand, which it does not do during teardown.
+- `MaybeFindInScene` no longer adopts an instance whose scene is being unloaded, so an additive
+  unload cannot hand back an object that is about to be destroyed while a loaded one exists.
+
+### Added
+
+- `SingletonRuntime.IsUnloadingScene` and `SingletonRuntime.IsTearingDown`, the latter being the
+  predicate the resolution paths now guard on.
+
 ## [1.0.1]
 
 ### Changed
