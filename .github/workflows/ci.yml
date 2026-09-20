@@ -1,4 +1,19 @@
-name: CI
+# Confirms the package imports and compiles on the Unity version the README claims.
+#
+# The filename is deliberately still ci.yml. GitHub keys a workflow — including whether it is
+# disabled — to its path, and this one is currently disabled because it cannot pass: the runner
+# exhausts its disk pulling the ~5 GB editor image, and there is no UNITY_LICENSE secret.
+# Renaming the file would register a NEW workflow, enabled by default, which would run and fail
+# immediately. Rename it to unity.yml when the job actually works.
+#
+# The analyzer used to be a second job here. It now lives in analyzer.yml so it can be enabled
+# on its own; one workflow holding both meant disabling this also disabled the only checks that
+# pass. The consequence of the split is that there is no longer a `needs:` edge, so this no
+# longer waits for the analyzer to go green before spending a runner.
+#
+# Requires UNITY_LICENSE (and UNITY_EMAIL / UNITY_PASSWORD for a Personal licence) in repository
+# secrets; see https://game.ci/docs/github/activation
+name: Unity
 
 on:
   push:
@@ -8,72 +23,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  # The analyzer is a plain netstandard2.0 library, so it builds without Unity and fails fast.
-  # TreatWarningsAsErrors catches RS-prefixed analyzer-authoring mistakes (unregistered rules,
-  # missing release tracking) that would otherwise ship silently.
-  analyzer:
-    name: Build analyzer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Analyzer severities match .editorconfig
-        # The rulesets are generated from .editorconfig. Checked here as well as in the
-        # pre-commit hook, because git does not version .git/hooks and a fresh clone has none
-        # until someone runs `git config core.hooksPath .githooks`.
-        run: python3 scripts/sync-analyzer-severities.py --check
-
-      - name: Build
-        working-directory: Packages/com.entropyreductionservices.singleton/Analyzers~
-        run: dotnet build -c Release -p:TreatWarningsAsErrors=true
-
-      - name: Test the rules
-        working-directory: Packages/com.entropyreductionservices.singleton/Analyzers~/Tests
-        run: dotnet test -c Release
-        # The analyzer resolves its base type by metadata name and silently registers no actions
-        # when that lookup misses, so "it built" says nothing about whether any rule fires. These
-        # tests are the only thing in CI that would catch that.
-
-      - name: Verify the committed DLL still enforces every rule
-        working-directory: Packages/com.entropyreductionservices.singleton/Analyzers~/StalenessProbe
-        run: |
-          # A stale committed binary is the most likely way this package ships a rule set that
-          # does not match its own source. This compiles a deliberately violating file against
-          # the COMMITTED DLL and fails if any rule has gone quiet.
-          #
-          # Deliberately behavioural rather than a byte-for-byte comparison against a fresh
-          # build. That comparison is close to workable — the csproj pins away the git SHA and
-          # the builder's path — but it still breaks on any .NET SDK patch bump, and one working
-          # copy was seen emitting identical IL with differing MVID and PDB checksum. Behaviour
-          # is the property worth protecting, and it survives both.
-          # --no-incremental: an up-to-date build recompiles nothing and emits no diagnostics,
-          # which would look identical to every rule being broken.
-          #
-          # The severity is not matched on. This project pins the rules to warning via its own
-          # .editorconfig, but the check is about whether a rule FIRES, and tying it to one
-          # severity turns a severity change into a mystifying CI failure.
-          set -o pipefail
-          dotnet build -c Release --no-incremental 2>&1 | tee build.log
-          for rule in ERS0001 ERS0002 ERS0003 ERS0004 ERS0005 ERS0006; do
-            grep -qE "(warning|error) $rule" build.log || missing="$missing $rule"
-          done
-          [ -z "$missing" ] || {
-            echo "::error::Did not fire against the committed analyzer DLL:$missing — rebuild it with" \
-                 "cd Analyzers~ && dotnet build -c Release && cp bin/Release/ERS.Singleton.Analyzers.dll ../Runtime/Analyzers/"
-            exit 1
-          }
-
-  # Confirms the package imports and compiles on the Unity version the README claims.
-  # Requires UNITY_LICENSE (and UNITY_EMAIL / UNITY_PASSWORD for a Personal licence) in
-  # repository secrets; see https://game.ci/docs/github/activation
-  #
   # Restricted to main, tags and manual runs. The job pulls a ~5 GB editor image and takes far
-  # longer than the rest of the workflow, which is a poor trade on every push to every PR. The
-  # analyzer job still runs everywhere, so a pull request keeps fast feedback on the rule set.
+  # longer than anything else here, which is a poor trade on every push to every pull request.
+  # analyzer.yml runs everywhere, so a pull request keeps fast feedback on the rule set.
   #
   # One version, matching package.json's "unity" floor. 6000.3 is the current LTS, supported
   # until December 2027; 6.0 LTS ended in October 2026 and 2022 LTS in May 2025. The matrix stays
@@ -81,7 +33,6 @@ jobs:
   unity:
     name: Unity ${{ matrix.unityVersion }}
     runs-on: ubuntu-latest
-    needs: analyzer
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref == 'refs/heads/main' ||
@@ -99,7 +50,7 @@ jobs:
           path: Library
           # Keyed on what actually determines Library. Packages/** would also hash the
           # Analyzers~ tree, which Unity never imports, so editing an analyzer unit test
-          # would bust the cache and force a full reimport on both matrix legs.
+          # would bust the cache and force a full reimport.
           key: Library-${{ matrix.unityVersion }}-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json', 'ProjectSettings/**') }}
           restore-keys: Library-${{ matrix.unityVersion }}-
 
