@@ -27,9 +27,13 @@ namespace ERS.Singleton.Analyzers.Tests
         private const string Prelude = @"
 namespace UnityEngine
 {
-    public class Object { }
-    public class Component : Object { }
-    public class MonoBehaviour : Component { }
+    // Enough of the real hierarchy to exercise ERS0003, which now fires only on members declared
+    // in the UnityEngine namespace — those are the ones backed by the native peer.
+    public class Object { public string name; }
+    public class Component : Object { public Transform transform; }
+    public class Transform : Component { }
+    public class Behaviour : Component { public bool enabled; }
+    public class MonoBehaviour : Behaviour { public void StartCoroutine(object routine) { } }
 }
 
 namespace EntropyReductionServices.Singletons

@@ -54,7 +54,7 @@ What that buys you and what it does not:
 | | |
 |---|---|
 | Plain C# members on the returned object | Work. Lists, dictionaries, events, plain fields. |
-| Members touching the native peer | Throw `MissingReferenceException`: `transform`, `gameObject`, `enabled`, `StartCoroutine`. |
+| Members declared by `UnityEngine` | Throw `MissingReferenceException`: `transform`, `gameObject`, `enabled`, `StartCoroutine`. ERS0003 reports these, and only these. |
 | `Instance != null` | Unchanged. Unity's `==` overload still reports the tombstone as null. |
 | `Instance?.Foo()` | **Not a guard.** `?.` tests the reference, not the `==` overload, and the destroyed component is a live C# object — so the call proceeds. ERS0003 reports it. |
 | `IsAvailable`, `Exists`, `TryGetInstance` | Answer whether a *live* singleton exists, so they go false while `Instance` still returns a reference. |
@@ -90,8 +90,8 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
 - **Sharing a `GameObject` with components you care about**, on any flavour that deduplicates: the
   default blast radius is the whole `GameObject`. See `DestroyWholeGameObject`.
-- **Unguarded `OnDestroy` / `OnApplicationQuit` access** to anything beyond managed state. See
-  [Teardown](#teardown).
+- **Unguarded `OnDestroy` / `OnApplicationQuit` access to a `UnityEngine` member** of the
+  singleton. Your own members are fine there. ERS0003. See [Teardown](#teardown).
 
 ## Side effects of touching Instance
 

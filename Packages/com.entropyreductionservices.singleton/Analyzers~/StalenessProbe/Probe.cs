@@ -3,9 +3,13 @@
 
 namespace UnityEngine
 {
-    public class Object { }
-    public class Component : Object { }
-    public class MonoBehaviour : Component { }
+    // Enough of the real hierarchy to exercise ERS0003, which now fires only on members declared
+    // in the UnityEngine namespace — those are the ones backed by the native peer.
+    public class Object { public string name; }
+    public class Component : Object { public Transform transform; }
+    public class Transform : Component { }
+    public class Behaviour : Component { public bool enabled; }
+    public class MonoBehaviour : Behaviour { public void StartCoroutine(object routine) { } }
 }
 
 namespace EntropyReductionServices.Singletons
@@ -72,7 +76,9 @@ namespace Probe
         private Bus _assigned;
 
         private void Start() { _assigned = Bus.Instance; }      // ERS0002 (field cache)
-        private void OnDestroy() { Bus.Instance.Stop(); }       // ERS0003 (unguarded teardown)
+        // ERS0003 now fires only on UnityEngine-declared members, so the probe must use one:
+        // Bus.Instance.Stop() is managed and deliberately clean.
+        private void OnDestroy() { Bus.Instance.StartCoroutine(null); }   // ERS0003
         private void Update() { Bus.Instance?.Stop(); }         // ERS0006 (dead null-conditional)
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -409,6 +410,15 @@ namespace EntropyReductionServices.Analyzers
             if (!IsDereferenced(access)) return false;
             if (HasExplicitGuard(method)) return false;
 
+            // Only UnityEngine-declared members reach the native object. Your own methods run on
+            // the destroyed component's managed state and are fine, which is the overwhelmingly
+            // common teardown shape — an OnDestroy unregistering itself from a manager.
+            var member = FindMemberAccessedOnInstance(access);
+            if (member == null) return false;
+
+            var symbol = context.SemanticModel.GetSymbolInfo(member, context.CancellationToken).Symbol;
+            if (!IsDeclaredByUnity(symbol)) return false;
+
             var owner = context.SemanticModel
                 .GetEnclosingSymbol(access.SpanStart, context.CancellationToken)?.ContainingType;
 
@@ -417,8 +427,53 @@ namespace EntropyReductionServices.Analyzers
                 access.GetLocation(),
                 owner?.Name ?? "<unknown>",
                 singletonName,
+                member.Identifier.ValueText,
                 methodName));
             return true;
+        }
+
+        /// <summary>
+        /// The name written immediately after Instance: 'Bar' in both 'Foo.Instance.Bar' and
+        /// 'Foo.Instance?.Bar'. Null when the expression is something this rule cannot read, such
+        /// as an indexer, in which case nothing is reported rather than guessed at.
+        /// </summary>
+        private static SimpleNameSyntax FindMemberAccessedOnInstance(MemberAccessExpressionSyntax access)
+        {
+            if (access.Parent is MemberAccessExpressionSyntax plain && plain.Expression == access)
+                return plain.Name;
+
+            if (!(access.Parent is ConditionalAccessExpressionSyntax conditional) ||
+                conditional.Expression != access)
+                return null;
+
+            switch (conditional.WhenNotNull)
+            {
+                case MemberBindingExpressionSyntax binding:
+                    return binding.Name;
+                case InvocationExpressionSyntax invocation
+                    when invocation.Expression is MemberBindingExpressionSyntax bound:
+                    return bound.Name;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// True when the symbol is declared by a type in the UnityEngine namespace, which is the
+        /// practical test for "backed by the native peer". Checked on the declaring type rather
+        /// than the receiver: a user singleton inherits transform from UnityEngine.Component, and
+        /// it is the declaration that decides whether the member touches native state.
+        ///
+        /// Unresolved symbols report false. A missed warning costs what the code cost before this
+        /// rule narrowed; a false one is what drives people to switch the rule off.
+        /// </summary>
+        private static bool IsDeclaredByUnity(ISymbol symbol)
+        {
+            var declaring = symbol?.ContainingType?.ContainingNamespace;
+            if (declaring == null || declaring.IsGlobalNamespace) return false;
+
+            var name = declaring.ToDisplayString();
+            return name == "UnityEngine" || name.StartsWith("UnityEngine.", StringComparison.Ordinal);
         }
 
         /// <summary>

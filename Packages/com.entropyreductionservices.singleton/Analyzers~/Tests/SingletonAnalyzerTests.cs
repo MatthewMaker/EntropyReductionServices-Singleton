@@ -170,7 +170,7 @@ namespace Client
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void OnDestroy() { {|ERS0003:Bus.Instance|}.Stop(); }
+        private void OnDestroy() { {|ERS0003:Bus.Instance|}.StartCoroutine(null); }
     }
 }");
 
@@ -181,7 +181,7 @@ namespace Client
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void OnApplicationQuit() { {|ERS0003:Bus.Instance|}.Stop(); }
+        private void OnApplicationQuit() { var t = {|ERS0003:Bus.Instance|}.transform; }
     }
 }");
 
@@ -213,7 +213,35 @@ namespace Client
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.Stop(); }
+        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.StartCoroutine(null); }
+    }
+}");
+
+        /// <summary>
+        /// The shape this rule exists to stop nagging about. Instance hands back the destroyed
+        /// component during teardown, so a call to the singleton's own method runs against live
+        /// managed state — which is what an OnDestroy that unregisters itself actually does.
+        /// </summary>
+        [Test]
+        public Task ERS0003_ManagedMemberInTeardown_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnDestroy() { Bus.Instance.Stop(); }
+    }
+}");
+
+        /// <summary>Inherited UnityEngine members count, though the receiver is the subclass.</summary>
+        [Test]
+        public Task ERS0003_InheritedUnityMemberInTeardown_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnDestroy() { var n = {|ERS0003:Bus.Instance|}.name; }
     }
 }");
 
@@ -349,7 +377,23 @@ namespace Client
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.Stop(); }
+        private void OnDestroy() { {|ERS0003:Bus.Instance|}?.StartCoroutine(null); }
+    }
+}");
+
+        /// <summary>
+        /// The interaction the narrowing creates: in teardown on a managed member ERS0003 now
+        /// declines, and ERS0006 picks it up instead. Still exactly one diagnostic, and the right
+        /// one — the call is safe, but the '?.' is as misleading there as anywhere.
+        /// </summary>
+        [Test]
+        public Task ERS0006_InTeardownOnManagedMember_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnDestroy() { {|ERS0006:Bus.Instance|}?.Stop(); }
     }
 }");
 

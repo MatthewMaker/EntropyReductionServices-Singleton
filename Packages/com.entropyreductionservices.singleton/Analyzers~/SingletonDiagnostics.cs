@@ -66,20 +66,24 @@ namespace EntropyReductionServices.Analyzers
         /// </summary>
         public static readonly DiagnosticDescriptor UnguardedTeardownAccess = new DiagnosticDescriptor(
             id: "ERS0003",
-            title: "Guard singleton access in teardown callbacks",
-            messageFormat: "'{0}' dereferences '{1}.Instance' inside '{2}', where no live " +
-                           "singleton is guaranteed; test IsAvailable or use TryGetInstance",
+            title: "Guard teardown access to a singleton's Unity members",
+            messageFormat: "'{0}' reads '{1}.Instance.{2}' inside '{3}'; '{2}' is declared by " +
+                           "UnityEngine, so it reaches a native object that may already be " +
+                           "destroyed. Test IsAvailable or use TryGetInstance",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true,
-            description: "A live singleton exists for the whole time the application is running " +
-                         "and none exists during teardown, because recreating one then leaks " +
-                         "objects into a scene that is going away and can touch subsystems that " +
-                         "have already shut down. During teardown Instance returns the destroyed " +
-                         "component, so managed calls are safe but anything touching the native " +
-                         "peer throws. Note that '?.' is not a guard here: it tests the reference " +
-                         "and the destroyed component is a live C# object, so it proceeds. Use " +
-                         "IsAvailable or TryGetInstance, which consult Unity's == overload.",
+            description: "During teardown Instance returns the component that held the slot, " +
+                         "still a live C# object after its native peer is gone. Calling your own " +
+                         "members on it is therefore safe, and is not reported: an OnDestroy that " +
+                         "unregisters itself from a manager needs no guard. Members declared by " +
+                         "UnityEngine are the exception — transform, gameObject, enabled, " +
+                         "StartCoroutine and the rest reach the native object and raise " +
+                         "MissingReferenceException. Note that '?.' is not a guard: it tests the " +
+                         "reference, and the destroyed component is a live C# object, so it " +
+                         "proceeds. Use IsAvailable or TryGetInstance, which consult Unity's == " +
+                         "overload. The rule reads only the member named directly on Instance; a " +
+                         "method of your own that itself touches the native peer is invisible to it.",
             helpLinkUri: HelpBase + "ers0003");
 
         /// <summary>

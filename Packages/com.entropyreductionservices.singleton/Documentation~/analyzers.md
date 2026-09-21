@@ -11,7 +11,7 @@ manifest entries, nothing copied into their `Assets` folder.
 |----|---------|------|
 | ERS0001 | Warning | Singleton message override must call its base implementation |
 | ERS0002 | Warning | Do not cache a singleton `Instance` in a field |
-| ERS0003 | Warning | Guard singleton access in teardown callbacks |
+| ERS0003 | Warning | Guard teardown access to a singleton's Unity members |
 | ERS0004 | Warning | Do not access a singleton during MonoBehaviour construction |
 | ERS0005 | Warning | Singleton message must be declared with `override` |
 | ERS0006 | Warning | Null-conditional access on a lazy singleton's `Instance` is misleading |
@@ -58,34 +58,55 @@ private void Update()
 }
 ```
 
-## ers0003 — guard teardown access
+## ers0003 — guard teardown access to Unity members
 
-A live singleton exists for the whole time the application is running, and none exists during
-teardown — application quit, or the frame in which a scene unload destroyed it. `Instance` still
-returns a reference then — the destroyed component, so plain C# calls on it work — but anything
-touching the native peer (`transform`, `gameObject`, `StartCoroutine`) raises
-`MissingReferenceException`. Inside `OnDestroy` and `OnApplicationQuit`, where that is a live
-possibility, use one of:
+During teardown — application quit, or the frame in which a scene unload destroyed it — `Instance`
+returns the component that held the slot, still a live C# object after its native peer is gone.
+
+**Calling your own members on it is safe and is not reported.** This is the common teardown shape
+and it needs no guard:
 
 ```csharp
-if (AudioBus.IsAvailable) AudioBus.Instance.Stop();
-if (AudioBus.TryGetInstance(out var bus)) bus.Stop();
+private void OnDestroy()
+{
+    AudioBus.Instance.Unregister(this);   // clean: Unregister is yours, and touches managed state
+}
 ```
 
-**Not `AudioBus.Instance?.Stop()`.** `?.` tests the reference rather than Unity's `==` overload,
-and during teardown `Instance` hands back the destroyed component — a live C# object — so the call
-proceeds. It reads as a guard and is not one, which is why it is reported rather than exempt.
+Members declared by `UnityEngine` are the exception. `transform`, `gameObject`, `enabled`,
+`StartCoroutine`, `name` and the rest reach the native object and raise
+`MissingReferenceException`, so those are reported:
 
-Both a plain dereference and a `?.` dereference are reported; a bare read that is passed along or
-compared is not. The whole method is exempted when it mentions `IsAvailable`
-or `TryGetInstance` anywhere — deliberately crude, so the exemption is predictable rather than
-dependent on the analyzer's flow analysis agreeing with yours.
+```csharp
+private void OnDestroy()
+{
+    AudioBus.Instance.StartCoroutine(Fade());   // ERS0003
+}
+```
 
-`OnDisable` is not reported. It runs during teardown, but it also runs throughout ordinary play —
+Guard those with either of:
+
+```csharp
+if (AudioBus.IsAvailable) AudioBus.Instance.StartCoroutine(Fade());
+if (AudioBus.TryGetInstance(out var bus)) bus.StartCoroutine(Fade());
+```
+
+**Not `AudioBus.Instance?.StartCoroutine(...)`.** `?.` tests the reference rather than Unity's `==`
+overload, and the destroyed component is a live C# object, so the call proceeds. It reads as a
+guard and is not one, which is why it is reported rather than exempt.
+
+The whole method is exempted when it mentions `IsAvailable` or `TryGetInstance` anywhere —
+deliberately crude, so the exemption is predictable rather than dependent on the analyzer's flow
+analysis agreeing with yours.
+
+**The limit.** Only the member named directly on `Instance` is read. A method of your own that
+itself touches `transform` is invisible to the rule, and will still throw. Narrowing this way was
+a deliberate trade: the previous version reported every teardown dereference, including the safe
+majority, and a rule that fires mostly on correct code gets switched off wholesale.
+
+`OnDisable` is not reported at all. It runs during teardown, but also throughout ordinary play —
 `SetActive(false)`, a disabled component, a pooled object returning to its pool — and the analyzer
-cannot tell the two apart. It is also the case the shutdown allowance above is aimed at: an
-`OnDisable` that unregisters itself from a singleton touches only managed state, and that now
-works whether or not shutdown has begun.
+cannot tell the two apart.
 
 ## ers0004 — no access during construction
 
