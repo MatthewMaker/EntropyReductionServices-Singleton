@@ -100,6 +100,35 @@ namespace EntropyReductionServices.Analyzers
             helpLinkUri: HelpBase + "ers0004");
 
         /// <summary>
+        /// ERS0007 — the base call is present but in the wrong position.
+        ///
+        /// ERS0001 only asks whether base.Awake() / base.OnDestroy() is called at all, so both of
+        /// these pass it and are still wrong:
+        ///
+        ///   Awake:     work happens before base.Awake() claims the slot, so a duplicate that is
+        ///              about to destroy itself runs that work first, side effects included.
+        ///   OnDestroy: cleanup happens after base.OnDestroy() releases the slot, so Instance is
+        ///              gone and IsCurrentInstance has already turned false.
+        ///
+        /// Order-dependent, silent, and invisible to every other rule.
+        /// </summary>
+        public static readonly DiagnosticDescriptor BaseCallOutOfOrder = new DiagnosticDescriptor(
+            id: "ERS0007",
+            title: "Singleton base call is in the wrong position",
+            messageFormat: "'{0}.{1}' must call base.{1}() {2}",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            description: "The base Awake claims the singleton slot and destroys duplicates, so it " +
+                         "belongs before anything else: work placed ahead of it runs even on an " +
+                         "instance that is about to destroy itself. The base OnDestroy releases " +
+                         "the slot, so it belongs after everything else: code placed behind it " +
+                         "sees no live instance and an IsCurrentInstance that has already gone " +
+                         "false. Calling the base at all satisfies ERS0001; calling it in the " +
+                         "right place is a separate question.",
+            helpLinkUri: HelpBase + "ers0007");
+
+        /// <summary>
         /// ERS0006 — '?.' on a lazy singleton's Instance outside teardown. The accessor cannot
         /// return null there, so the operator is dead; and inside teardown it does not protect
         /// anything, which ERS0003 covers. Either way it tells a reader the value may be null,

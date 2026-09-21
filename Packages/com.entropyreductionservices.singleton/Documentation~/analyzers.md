@@ -15,6 +15,7 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0004 | Warning | Do not access a singleton during MonoBehaviour construction |
 | ERS0005 | Warning | Singleton message must be declared with `override` |
 | ERS0006 | Warning | Null-conditional access on a lazy singleton's `Instance` is misleading |
+| ERS0007 | Warning | Singleton base call is in the wrong position |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -125,6 +126,38 @@ silent:
 ```csharp
 ScoreBoard.Instance?.Refresh();      // fine: passive, may genuinely be null
 ```
+
+## ers0007 — put the base call in the right place
+
+ERS0001 asks only whether the base call happens. This asks where. Both of the following satisfy
+ERS0001 and are still wrong:
+
+```csharp
+protected override void Awake()
+{
+    _mixer = GetComponent<AudioMixer>();   // runs even on a duplicate about to destroy itself
+    base.Awake();                          // ERS0007 — claims the slot too late
+}
+
+protected override void OnDestroy()
+{
+    base.OnDestroy();                      // ERS0007 — releases the slot too early
+    _sources.Clear();                      // IsCurrentInstance is already false here
+}
+```
+
+`base.Awake()` claims the slot and destroys duplicates, so it belongs **first**. `base.OnDestroy()`
+releases the slot, so it belongs **last**:
+
+```csharp
+protected override void Awake()     { base.Awake(); _mixer = GetComponent<AudioMixer>(); }
+protected override void OnDestroy() { _sources.Clear(); base.OnDestroy(); }
+```
+
+Only a base call that is a whole statement directly in the method body is considered. One nested
+in an `if`, a loop or a local function is left alone — ERS0001 deliberately accepts those, and
+their position is not a simple ordering question. An expression-bodied override is first and last
+at once, so it is never reported.
 
 ## Retuning severities
 

@@ -94,6 +94,11 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         /// where resurrecting is correct behaviour and would leak a probe into the next test.</summary>
         protected virtual bool ReadsInstance => true;
 
+        // ERS0007 wants base.OnDestroy() last, and is right for ordinary code. This probe is the
+        // exception it cannot know about: everything below deliberately observes the state AFTER
+        // the slot has been released, because that is the moment the hazard occurs. Moving the
+        // base call to the end would measure the wrong instant and silently pass every test.
+#pragma warning disable ERS0007
         protected override void OnDestroy()
         {
             base.OnDestroy();                       // releases the slot, reports the unload
@@ -108,6 +113,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             GotTombstone = ReferenceEquals(got, this);
             GotFreshObject = !ReferenceEquals(got, this) && !ReferenceEquals(got, null);
         }
+#pragma warning restore ERS0007
     }
 
     internal class UnloadTombstoneWitness : TeardownWitness<UnloadTombstoneWitness> { }

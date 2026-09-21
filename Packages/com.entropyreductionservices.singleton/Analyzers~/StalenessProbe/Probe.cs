@@ -55,6 +55,12 @@ namespace Probe
         protected override void Awake() { }                     // no base.Awake()
     }
 
+    public class Ers0007 : Bus
+    {
+        private int _x;
+        protected override void Awake() { _x = 1; base.Awake(); }   // ERS0007 (base call too late)
+    }
+
     public class Ers0005 : Bus
     {
         protected void OnDestroy() { }                          // hides instead of overriding

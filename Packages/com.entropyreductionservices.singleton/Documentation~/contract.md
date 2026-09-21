@@ -65,9 +65,11 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 ## Constraints on the subclass
 
 - Must be CRTP: `class Foo : MonoBehaviourSingletonPersistent<Foo>`.
-- An `Awake` override must call `base.Awake()`; an `OnDestroy` override must call
-  `base.OnDestroy()`. **Not compiler-enforced** — the one place this design relies on discipline.
-  ERS0001 and ERS0005 exist to catch it.
+- An `Awake` override must call `base.Awake()` **first**; an `OnDestroy` override must call
+  `base.OnDestroy()` **last**. The base Awake claims the slot and destroys duplicates, so work
+  ahead of it runs on instances that are about to disappear; the base OnDestroy releases the slot,
+  so work behind it sees no live instance. **Not compiler-enforced** — the one place this design
+  relies on discipline. ERS0001, ERS0005 and ERS0007 exist to catch it.
 - A non-default `Resources` path requires `[SingletonResource("path")]`.
 - Persistent flavours accept being reparented to the scene root.
 - `Current` is read-only to subclasses; claim the slot via `AssignInAwake` or the lazy path.

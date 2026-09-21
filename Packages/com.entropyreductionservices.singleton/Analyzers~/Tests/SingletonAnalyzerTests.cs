@@ -217,6 +217,95 @@ namespace Client
     }
 }");
 
+        // -- ERS0007: base call present but misordered -------------------------------------------
+
+        /// <summary>
+        /// base.Awake() claims the slot and destroys duplicates, so work ahead of it runs even on
+        /// an instance that is about to destroy itself.
+        /// </summary>
+        [Test]
+        public Task ERS0007_AwakeCallsBaseLate_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Late : Bus
+    {
+        private int _x;
+        protected override void Awake() { _x = 1; {|ERS0007:base.Awake();|} }
+    }
+}");
+
+        /// <summary>base.OnDestroy() releases the slot, so anything after it sees no instance.</summary>
+        [Test]
+        public Task ERS0007_OnDestroyCallsBaseEarly_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Early : Bus
+    {
+        private int _x;
+        protected override void OnDestroy() { {|ERS0007:base.OnDestroy();|} _x = 1; }
+    }
+}");
+
+        [Test]
+        public Task ERS0007_CorrectOrdering_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Right : Bus
+    {
+        private int _x;
+        protected override void Awake() { base.Awake(); _x = 1; }
+        protected override void OnDestroy() { _x = 0; base.OnDestroy(); }
+    }
+}");
+
+        /// <summary>A single statement cannot be out of order with anything.</summary>
+        [Test]
+        public Task ERS0007_BaseCallAlone_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Only : Bus
+    {
+        protected override void Awake() { base.Awake(); }
+        protected override void OnDestroy() { base.OnDestroy(); }
+    }
+}");
+
+        /// <summary>
+        /// Expression-bodied members are trivially first and last at once, so the rule has
+        /// nothing to say about them.
+        /// </summary>
+        [Test]
+        public Task ERS0007_ExpressionBodied_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Arrow : Bus
+    {
+        protected override void Awake() => base.Awake();
+    }
+}");
+
+        /// <summary>
+        /// A base call nested in a conditional is left alone. CallsBase deliberately accepts it
+        /// for ERS0001, and its position is not a simple ordering question — guessing would turn
+        /// a permissive rule into a confusing one.
+        /// </summary>
+        [Test]
+        public Task ERS0007_BaseCallInsideConditional_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Guarded : Bus
+    {
+        private int _x;
+        protected override void Awake() { if (_x == 0) { base.Awake(); } _x = 1; }
+    }
+}");
+
         // -- ERS0006: '?.' on a lazy singleton's Instance ---------------------------------------
 
         /// <summary>

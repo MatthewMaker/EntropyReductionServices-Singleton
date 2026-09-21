@@ -62,7 +62,7 @@ jobs:
           # severity turns a severity change into a mystifying CI failure.
           set -o pipefail
           dotnet build -c Release --no-incremental 2>&1 | tee build.log
-          for rule in ERS0001 ERS0002 ERS0003 ERS0004 ERS0005 ERS0006; do
+          for rule in ERS0001 ERS0002 ERS0003 ERS0004 ERS0005 ERS0006 ERS0007; do
             grep -qE "(warning|error) $rule" build.log || missing="$missing $rule"
           done
           [ -z "$missing" ] || {

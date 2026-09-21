@@ -40,7 +40,8 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.UnguardedTeardownAccess,
                 SingletonDiagnostics.ConstructionTimeAccess,
                 SingletonDiagnostics.HidesBaseMessage,
-                SingletonDiagnostics.RedundantNullConditional);
+                SingletonDiagnostics.RedundantNullConditional,
+                SingletonDiagnostics.BaseCallOutOfOrder);
 
         /// <summary>
         /// Resolves the singleton base type once per compilation and registers nothing at all when
@@ -100,7 +101,11 @@ namespace EntropyReductionServices.Analyzers
                 // called Awake is not this analyzer's business.
                 var overridden = method.OverriddenMethod;
                 if (overridden == null || !DerivesFrom(overridden.ContainingType, singletonBase)) return;
-                if (CallsBase(declaration, name)) return;
+                if (CallsBase(declaration, name))
+                {
+                    ReportBaseCallOutOfOrder(context, declaration, name, owner.Name);
+                    return;
+                }
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     SingletonDiagnostics.MissingBaseCall,
@@ -119,6 +124,60 @@ namespace EntropyReductionServices.Analyzers
                     owner.Name,
                     name));
             }
+        }
+
+        /// <summary>
+        /// ERS0007: the base call exists — ERS0001 already let this through — but sits in the
+        /// wrong place. Awake's belongs first, OnDestroy's last.
+        ///
+        /// Only a base call that is a whole statement directly in the method body is considered.
+        /// One nested in an if, a loop or a local function is left alone: its position is not a
+        /// simple ordering question and CallsBase deliberately accepts it, so guessing here would
+        /// turn a permissive rule into a confusing one.
+        /// </summary>
+        private static void ReportBaseCallOutOfOrder(
+            SyntaxNodeAnalysisContext context,
+            MethodDeclarationSyntax declaration,
+            string name,
+            string ownerName)
+        {
+            var body = declaration.Body;
+            if (body == null) return;                       // expression-bodied: first and last
+
+            var statements = body.Statements;
+            if (statements.Count < 2) return;               // nothing to be out of order against
+
+            var index = -1;
+            for (var i = 0; i < statements.Count; i++)
+            {
+                if (!IsBaseCallStatement(statements[i], name)) continue;
+                index = i;
+                break;
+            }
+
+            if (index < 0) return;                          // nested somewhere; not our business
+
+            var wantsFirst = name == "Awake";
+            var correct = wantsFirst ? index == 0 : index == statements.Count - 1;
+            if (correct) return;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.BaseCallOutOfOrder,
+                statements[index].GetLocation(),
+                ownerName,
+                name,
+                wantsFirst ? "first, before any other statement" : "last, after any other statement"));
+        }
+
+        /// <summary>True when the statement is exactly 'base.&lt;name&gt;();' and nothing else.</summary>
+        private static bool IsBaseCallStatement(StatementSyntax statement, string name)
+        {
+            if (!(statement is ExpressionStatementSyntax expression)) return false;
+            if (!(expression.Expression is InvocationExpressionSyntax invocation)) return false;
+            if (!(invocation.Expression is MemberAccessExpressionSyntax access)) return false;
+            if (!(access.Expression is BaseExpressionSyntax)) return false;
+
+            return access.Name.Identifier.ValueText == name;
         }
 
         /// <summary>
