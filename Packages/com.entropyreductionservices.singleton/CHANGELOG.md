@@ -4,6 +4,35 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0]
+
+### Added
+
+- `ERS0007` — the singleton base call must be in the right position, not merely present.
+  `base.Awake()` claims the slot and destroys duplicates, so it belongs **first**: work ahead of
+  it runs even on an instance that is about to destroy itself. `base.OnDestroy()` releases the
+  slot, so it belongs **last**: code behind it sees no live instance and an `IsCurrentInstance`
+  that has already turned false. `ERS0001` is satisfied by both wrong orderings.
+
+  Only a base call that is a whole statement directly in the method body is considered. One
+  nested in an `if`, a loop or a local function is left alone, and an expression-bodied override
+  is first and last at once, so neither is reported.
+
+### Changed
+
+- `ERS0003` now reports only members **declared by `UnityEngine`** — `transform`, `gameObject`,
+  `enabled`, `StartCoroutine`, `name` — rather than every dereference in a teardown callback.
+  Since 1.0.1 `Instance` returns the component that held the slot, so calling your own members on
+  it during teardown runs against live managed state and is safe. The rule was warning about the
+  shape it is most often used for, an `OnDestroy` unregistering itself from a manager, and a rule
+  that fires mostly on correct code gets switched off wholesale.
+
+  The limit is deliberate: only the member named directly on `Instance` is read, so a method of
+  your own that itself touches the native peer is invisible to the rule and will still throw.
+
+  A `?.` in teardown on a managed member now falls through to `ERS0006` instead — still one
+  diagnostic, and the call is safe even though the `?.` is misleading.
+
 ## [2.1.0]
 
 ### Added
