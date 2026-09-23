@@ -57,7 +57,8 @@ def read_severities():
     """Pull every dotnet_diagnostic.ERSxxxx.severity out of .editorconfig, in file order.
 
     Deliberately a line scan rather than a full .editorconfig parse: the rules live in one [*.cs]
-    section and a real parser would add a dependency to read five lines. Raises if a severity is
+    section and a real parser would add a dependency to read a handful of lines. Raises if a
+    severity is
     not one this script knows how to translate, so a typo fails loudly instead of silently
     dropping a rule from the generated file.
     """

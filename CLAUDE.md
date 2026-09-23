@@ -8,7 +8,7 @@ A Unity project whose only real content is the embedded package at
 `Packages/com.entropyreductionservices.singleton/`. The surrounding project exists so the package
 can be opened, compiled and tested by a real editor — it is a test harness, not an application.
 
-The package ships two things: the singleton base classes in `Runtime/`, and five Roslyn analyzers
+The package ships two things: the singleton base classes in `Runtime/`, and seven Roslyn analyzers
 that enforce their contract in *consuming* assemblies.
 
 ## Branching and releases
@@ -35,8 +35,9 @@ scripts/release.sh 2.3.1 --execute --push
 
 It is a local script rather than a workflow because the Unity suites are the release gate and CI
 cannot run them. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
-matching Unity editor is installed, `AnalyzerReleases.Unshipped.md` has no rules still pending,
-and `CHANGELOG.md` has an `## [Unreleased]` heading to promote. Pushing is a separate flag: a
+matching Unity editor is installed, and `CHANGELOG.md` has an `## [Unreleased]` heading to
+promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocker — the script
+moves them into `AnalyzerReleases.Shipped.md` under the new version as part of the release commit. Pushing is a separate flag: a
 local tag is trivially deletable, a pushed one triggers publication.
 
 The manual steps it automates, for reference — steps 2 and 3 are the ones that silently produce
