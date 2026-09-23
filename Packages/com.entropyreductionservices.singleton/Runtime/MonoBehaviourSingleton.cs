@@ -634,10 +634,31 @@ namespace EntropyReductionServices.Singletons
             var resource = Resources.Load<T>(ResourcePath);
             if (resource == null) return;
 
-            Current = Instantiate(resource);
-            MarkTransientIfEditMode(Current.gameObject);
-            Annotate(Current, $" {typeof(T).Name}(cr{SceneManager.GetActiveScene().buildIndex})");
-            Log($"created from resource '{ResourcePath}'.", Current);
+            // Instantiate runs Awake on the stack, so by the time it returns the slot may already
+            // be filled — and not necessarily by this component. A persistent singleton sharing
+            // its prefab root rebuilds itself on a GameObject of its own and destroys this one on
+            // the way; assigning over that seats a component already scheduled for destruction,
+            // whose OnDestroy then releases the slot and strands the live instance.
+            var created = Instantiate(resource);
+            if (Current == null) Current = created;
+
+            var claimed = Current;
+            if (claimed == null)
+            {
+                Log($"resource '{ResourcePath}' was instantiated but no instance survived Awake.");
+                return;
+            }
+
+            if (!ReferenceEquals(claimed, created))
+            {
+                Log($"created from resource '{ResourcePath}'; Awake claimed the slot for "
+                    + $"'{claimed.gameObject.name}'.", claimed);
+                return;
+            }
+
+            MarkTransientIfEditMode(created.gameObject);
+            Annotate(created, $" {typeof(T).Name}(cr{SceneManager.GetActiveScene().buildIndex})");
+            Log($"created from resource '{ResourcePath}'.", created);
         }
 
         /// <summary>Claims the singleton slot for this component during Awake, if it is still free.</summary>

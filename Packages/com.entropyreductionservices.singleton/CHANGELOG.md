@@ -6,6 +6,16 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A singleton created from `Resources` no longer loses its slot to the component it replaced.**
+  `Instantiate` runs `Awake` on the stack, so a persistent singleton sharing its prefab root
+  rebuilt itself on a GameObject of its own before `Instantiate` returned — and the creating code
+  then assigned the *returned* component, already scheduled for destruction, back over the slot.
+  Its `OnDestroy` released the slot at end of frame, stranding the live instance in
+  `DontDestroyOnLoad` and leaving the next access to create a second one. The creating code now
+  keeps whatever `Awake` claimed.
+
 ### Changed
 
 - **A duplicate no longer destroys its GameObject GameObject when anything else is on it.**
