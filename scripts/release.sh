@@ -179,7 +179,7 @@ if [ "$EXECUTE" -eq 0 ]; then
     step "Plan for --execute"
     note "set version $CURRENT -> $NEXT in package.json"
     note "regenerate Analyzers~/Version.props"
-    note "promote '## [Unreleased]' to '## [$NEXT]' in CHANGELOG.md"
+    note "promote '## [Unreleased]' to '## [$NEXT]' in CHANGELOG.md, leaving a fresh one above it"
     [ "$PENDING_RULES" -gt 0 ] \
         && note "move $PENDING_RULES unshipped rule(s) into AnalyzerReleases.Shipped.md under '## Release $NEXT'"
 
@@ -213,8 +213,12 @@ path, new = pathlib.Path(sys.argv[1]), sys.argv[2]
 text = path.read_text(encoding="utf-8")
 if text.count("## [Unreleased]") != 1:
     raise SystemExit(f"{path}: expected exactly one '## [Unreleased]' heading")
-path.write_text(text.replace("## [Unreleased]", f"## [{new}]", 1), encoding="utf-8")
-print(f"    CHANGELOG.md -> ## [{new}]")
+
+# A fresh empty [Unreleased] replaces the promoted one, so the next release has a heading to
+# promote without anyone hand-editing the file first — this script requires one to start.
+text = text.replace("## [Unreleased]", f"## [Unreleased]\n\n## [{new}]", 1)
+path.write_text(text, encoding="utf-8")
+print(f"    CHANGELOG.md -> ## [{new}], with a fresh ## [Unreleased] above it")
 PY
 
 if [ "$PENDING_RULES" -gt 0 ]; then
