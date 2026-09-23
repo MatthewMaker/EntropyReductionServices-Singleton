@@ -88,8 +88,11 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   that is a race. Use `Start`, `OnEnable`, or Script Execution Order.
 - **Setting `hideFlags` on a singleton yourself.** The find path depends on them.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
-- **Sharing a `GameObject` with components you care about**, on any flavour that deduplicates: the
-  default blast radius is the whole `GameObject`. See `DestroyWholeGameObject`.
+- **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged on any flavour
+  that deduplicates. A duplicate now destroys only itself when its host carries anything else, so a
+  sibling singleton is no longer collateral; the host does still travel as one object, so a
+  persistent flavour reparents its siblings to the scene root and makes them persistent too. See
+  `DestroyWholeGameObject`.
 - **Unguarded `OnDestroy` / `OnApplicationQuit` access to a `UnityEngine` member** of the
   singleton. Your own members are fine there. ERS0003. See [Teardown](#teardown).
 
@@ -115,6 +118,10 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 - `s_resourceProbed` means a `Resources` asset appearing after the first probe is not picked up for
   the rest of the session.
 - `DestroyImmediate` in edit mode can invalidate an enumeration you are inside.
+- The duplicate blast radius is decided inside the duplicate's `Awake`, from the components present
+  at that moment. A scene-authored or prefab host has them all by then. A singleton added with
+  `AddComponent` to a live object *before* its siblings is evaluated while alone on it, and will
+  still take the host with it — add the singleton last, or build the host inactive.
 - Additive scene loads still produce a duplicate. It self-destructs, but its `Awake` has already
   run by then.
 - The scene-unload window only opens if a singleton is itself destroyed by the unload. If none was,

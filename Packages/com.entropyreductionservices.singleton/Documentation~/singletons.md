@@ -233,11 +233,13 @@ The load is probed once per session — `Resources.Load` is synchronous, and pro
 access of a null `Instance` is a per-frame hitch risk. The corollary is that an asset appearing
 after the first probe is not picked up until the next session.
 
-**Duplicate blast radius.** Destroying a duplicate takes the whole GameObject by default, including
-any unrelated components sharing it. If your singleton shares its host:
+**Duplicate blast radius.** Destroying a duplicate takes the whole GameObject only when the
+singleton is alone on it — `Transform` plus itself. If anything else is riding along, only the
+component is destroyed, so a sibling singleton is never collateral damage. Force either answer:
 
 ```csharp
-protected override bool DestroyWholeGameObject => false;   // destroy just this component
+protected override bool DestroyWholeGameObject => false;   // never take the host
+protected override bool DestroyWholeGameObject => true;    // always take the host
 ```
 
 **Debug tracing.** Uncomment `SINGLETON_DEBUG` (lifecycle events) or `SINGLETON_DEBUG_GET` (every

@@ -671,11 +671,22 @@ namespace EntropyReductionServices.Singletons
         }
 
         /// <summary>
-        /// Controls the blast radius when a duplicate is discovered. Destroying the whole
-        /// GameObject takes any unrelated sibling components with it; override to false when the
-        /// singleton shares its host object.
+        /// Controls the blast radius when a duplicate is discovered: the whole host GameObject,
+        /// or only this component.
+        ///
+        /// Decided per host rather than per type, because that is the axis the question lives on.
+        /// A type cannot know whether it is alone on its object — bundled onto a shared "Managers"
+        /// object in one scene, on its own in another — and the old constant default of true made
+        /// the victim's safety depend on the *duplicate's* type overriding it. A sole, correctly
+        /// registered singleton could be destroyed as collateral because its host also carried a
+        /// duplicate of an unrelated singleton type, and it had no way to defend itself.
+        ///
+        /// Transform plus this component means nothing else is lost with the host, so the shell
+        /// goes too. Anything else present, and only this component is destroyed — leaving a
+        /// stripped GameObject behind is cheaper than silently breaking another component's
+        /// contract. Override to force either answer.
         /// </summary>
-        protected virtual bool DestroyWholeGameObject => true;
+        protected virtual bool DestroyWholeGameObject => gameObject.GetComponents<Component>().Length <= 2;
 
         /// <summary>Removes this component (or its GameObject) because the slot is already filled.</summary>
         protected virtual void DestroyDuplicate()

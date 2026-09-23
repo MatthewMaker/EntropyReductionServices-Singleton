@@ -4,6 +4,19 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **A duplicate no longer destroys its host GameObject when anything else is on it.**
+  `DestroyWholeGameObject` defaulted to a constant `true`, so resolving a duplicate of one
+  singleton type could destroy a sole, correctly registered instance of a *different* type that
+  happened to share the host — and the victim had no way to defend itself, because the override
+  lived on the duplicate's type. It is now decided per host: `Transform` plus the singleton means
+  the shell goes too, anything else means only the component is destroyed.
+
+  Override to force either answer. Existing `=> false` overrides keep working unchanged; an
+  explicit `=> true` is now the way to get the old unconditional behaviour.
 ## [2.3.0]
 
 ### Changed

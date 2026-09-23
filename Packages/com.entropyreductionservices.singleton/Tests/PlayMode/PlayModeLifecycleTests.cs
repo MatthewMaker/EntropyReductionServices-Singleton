@@ -93,5 +93,54 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             var probe = Probes.AuthorIn<PersistentFrame>(_scene, "Probe");
             Assert.AreEqual(Time.frameCount, probe.FramePromoted);
         }
+
+        /// <summary>
+        /// A duplicate must not take an unrelated singleton down with it. Play mode specifically,
+        /// because Destroy is deferred to end of frame: the bystander's Awake runs and claims its
+        /// slot before the host would have gone, so the loss only shows up a frame later. In edit
+        /// mode DestroyImmediate would have removed the host before that Awake ever ran.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DuplicateSharingAHost_DoesNotDestroyTheBystander()
+        {
+            var winner = new GameObject("winner");
+            winner.AddComponent<SharedHostDuplicate>();          // claims the slot
+
+            // Built inactive so both components exist before either Awake runs, which is what a
+            // scene-authored host looks like. Adding them to a live object instead would run the
+            // duplicate's Awake while it was still alone, and the blast radius is decided there.
+            var loser = new GameObject("loser");
+            loser.SetActive(false);
+            loser.AddComponent<SharedHostDuplicate>();                   // the duplicate
+            var bystander = loser.AddComponent<SharedHostBystander>();   // the only one of its type
+            loser.SetActive(true);
+
+            yield return null;   // end of frame: any deferred Destroy lands
+
+            Assert.IsTrue(loser != null, "the host must survive, because the bystander is on it");
+            Assert.IsTrue(bystander != null, "the bystander must survive");
+            Assert.AreSame(bystander, SharedHostBystander.Instance);
+            Assert.IsTrue(SharedHostDuplicate.Instance != null, "the winner still holds the slot");
+
+            Object.DestroyImmediate(winner);
+        }
+
+        /// <summary>The lone-singleton case still takes its shell with it.</summary>
+        [UnityTest]
+        public IEnumerator DuplicateAloneOnItsHost_StillDestroysTheHost()
+        {
+            var winner = new GameObject("winner");
+            winner.AddComponent<SharedHostAlone>();
+
+            var loser = new GameObject("loser");
+            loser.AddComponent<SharedHostAlone>();
+
+            yield return null;
+
+            Assert.IsTrue(loser == null, "nothing else was on the host, so the shell goes too");
+            Assert.IsTrue(SharedHostAlone.Instance != null);
+
+            Object.DestroyImmediate(winner);
+        }
     }
 }

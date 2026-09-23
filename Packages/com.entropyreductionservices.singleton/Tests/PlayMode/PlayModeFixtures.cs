@@ -130,6 +130,10 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
     internal class UnloadDdolSurvivesFilter : MonoBehaviourSingletonPersistent<UnloadDdolSurvivesFilter> { }
 
+    internal class SharedHostDuplicate : MonoBehaviourSingletonPassive<SharedHostDuplicate> { }
+    internal class SharedHostBystander : MonoBehaviourSingletonPassive<SharedHostBystander> { }
+    internal class SharedHostAlone : MonoBehaviourSingletonPassive<SharedHostAlone> { }
+
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }
