@@ -25,7 +25,22 @@ A release is a version bump, a commit, and an annotated tag on `main`.
 
 ### Release checklist
 
-Run in this order. Steps 2 and 3 are the ones that silently produce a broken package if skipped.
+`scripts/release.sh` runs every step below in order and refuses to tag if any of them fails:
+
+```sh
+scripts/release.sh minor                 # plan + full verification, writes nothing
+scripts/release.sh minor --execute       # bump, rebuild, verify, commit, tag (local)
+scripts/release.sh 2.3.1 --execute --push
+```
+
+It is a local script rather than a workflow because the Unity suites are the release gate and CI
+cannot run them. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
+matching Unity editor is installed, `AnalyzerReleases.Unshipped.md` has no rules still pending,
+and `CHANGELOG.md` has an `## [Unreleased]` heading to promote. Pushing is a separate flag: a
+local tag is trivially deletable, a pushed one triggers publication.
+
+The manual steps it automates, for reference — steps 2 and 3 are the ones that silently produce
+a broken package if skipped:
 
 1. **Update `CHANGELOG.md`** — rename the `[Unreleased]` heading to the new version, or add one.
    Keep a Changelog format; `Changed`/`Fixed`/`Added`, breaking items marked **Breaking:**.
