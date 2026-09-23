@@ -8,11 +8,15 @@ source of truth and the rulesets are generated from it.
 
     python3 scripts/sync-analyzer-severities.py            # write the rulesets
     python3 scripts/sync-analyzer-severities.py --check     # exit 1 if they have drifted
-    python3 scripts/sync-analyzer-severities.py --list-ids  # print every rule id, one per line
+    python3 scripts/sync-analyzer-severities.py --list-ids  # rule ids that emit a build diagnostic
 
 --check is what the pre-commit hook and CI run. --list-ids lets the staleness-probe CI step
 derive the rule list from .editorconfig rather than restating it in a shell loop, so a rule
 added here cannot be silently left unchecked.
+
+--list-ids prints only the rules set to error or warning. The probe greps a build log for
+"(warning|error) ERSxxxx", and suggestion/silent/none map to Info/Hidden/None, which never appear
+there — listing those would fail the probe for a rule that is behaving exactly as configured.
 """
 
 import re
@@ -32,6 +36,10 @@ RULE_NAMESPACE = "EntropyReductionServices.Analyzers"
 
 # .editorconfig severity -> ruleset Action. Ruleset has no vocabulary for "suggestion"/"silent"
 # beyond Info/Hidden, and these are the documented equivalents.
+# Severities that put a matchable "(warning|error) ERSxxxx" line in build output. Info, Hidden
+# and None do not, which is why --list-ids filters on this rather than listing every rule.
+BUILD_VISIBLE = {"error", "warning"}
+
 ACTIONS = {
     "error": "Error",
     "warning": "Warning",
@@ -112,7 +120,8 @@ def main():
     # committed DLL. Driving that loop from here means a new rule is checked the moment it is
     # declared in .editorconfig, instead of when someone remembers to edit the workflow.
     if "--list-ids" in args:
-        print("\n".join(sorted(severities)))
+        visible = sorted(rule for rule, severity in severities.items() if severity in BUILD_VISIBLE)
+        print("\n".join(visible))
         return 0
 
     wanted = render(severities)

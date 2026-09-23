@@ -7,9 +7,13 @@ so a bump without a rebuild ships a binary claiming the old version, and nothing
 wrong until someone reads the DLL's properties.
 
 package.json is the source of truth. Analyzers~/Version.props is generated from it and imported by
-the analyzer csproj, which collapses that location into a derived one. The CHANGELOG heading and
-the newest AnalyzerReleases.Shipped.md release are checked rather than generated, because both
-carry prose that only a human can write.
+the analyzer csproj, which collapses that location into a derived one. The CHANGELOG heading is checked rather
+than generated, because it carries prose only a human can write.
+
+AnalyzerReleases.Shipped.md is checked only for being *not newer* than package.json, never for
+equality: it gains a heading solely when a release adds a rule, so its history legitimately skips
+versions (1.0.0, 2.1.0, 2.2.0 — nothing for 1.0.1, 1.0.2 or 2.0.0). Requiring equality would fail
+permanently on the first release that adds no rule.
 
     python3 scripts/sync-version.py            # regenerate Version.props
     python3 scripts/sync-version.py --check     # exit 1 if anything disagrees
@@ -62,6 +66,11 @@ def render_props(version):
 """
 
 
+def as_tuple(version):
+    """x.y.z as a comparable tuple of ints."""
+    return tuple(int(part) for part in version.split("."))
+
+
 def first_match(path, pattern, what):
     """The first capture of `pattern` in `path`, or a fatal error naming what was expected."""
     match = re.search(pattern, path.read_text(encoding="utf-8"), re.MULTILINE)
@@ -89,9 +98,10 @@ def main():
         problems.append(f"CHANGELOG.md's newest heading is {changelog}, package.json says {version}")
 
     shipped = first_match(SHIPPED, r"^## Release (\d+\.\d+\.\d+)", "## Release x.y.z heading")
-    if shipped != version:
+    if as_tuple(shipped) > as_tuple(version):
         problems.append(
-            f"AnalyzerReleases.Shipped.md's newest release is {shipped}, package.json says {version}"
+            f"AnalyzerReleases.Shipped.md claims release {shipped}, which is newer than "
+            f"package.json's {version}"
         )
 
     if problems:
@@ -104,7 +114,8 @@ def main():
 
     if check_only:
         print(f"Package version consistent at {version} "
-              f"(package.json, Version.props, CHANGELOG.md, AnalyzerReleases.Shipped.md).")
+              f"(package.json, Version.props, CHANGELOG.md; "
+              f"AnalyzerReleases.Shipped.md at {shipped}).")
     return 0
 
 

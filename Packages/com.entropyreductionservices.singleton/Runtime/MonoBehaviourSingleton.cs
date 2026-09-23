@@ -708,9 +708,12 @@ namespace EntropyReductionServices.Singletons
         {
             get
             {
-                // Policy first: a cached managed compare short-circuits ahead of the native
-                // isPlaying call for every type that did not opt out.
-                if (EditModePolicy == SingletonEditModePolicy.Disabled && !Application.isPlaying)
+                // isPlaying first, deliberately. Testing EditModePolicy ahead of it would be one
+                // managed compare instead of one native call in the steady state, but it also
+                // forces the attribute reflection behind EditModePolicy to run on the first
+                // access of every type in a player build — where this short-circuit means it
+                // currently never runs at all.
+                if (!Application.isPlaying && EditModePolicy == SingletonEditModePolicy.Disabled)
                     throw new MissingSingletonException(PolicyViolationMessage());
 
                 // Fast path. All three helpers below open with "if (Current != null) return", so

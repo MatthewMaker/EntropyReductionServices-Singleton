@@ -19,6 +19,9 @@ namespace EntropyReductionServices.Singletons.Tests
     /// </summary>
     internal static class Fixtures
     {
+        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
+        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Fixtures).Assembly;
+
         /// <summary>
         /// Destroys every probe left behind by a test, releasing the singleton slots via
         /// OnDestroy — DestroyImmediate rather than Destroy so that happens before the next test
@@ -32,9 +35,6 @@ namespace EntropyReductionServices.Singletons.Tests
         /// FindObjectsOfTypeAll, not FindObjectsByType, because edit-mode transients carry
         /// HideFlags.DontSave and the ordinary find APIs skip them.
         /// </summary>
-        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
-        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Fixtures).Assembly;
-
         public static void PurgeAll()
         {
             foreach (var probe in Resources.FindObjectsOfTypeAll<MonoBehaviour>())

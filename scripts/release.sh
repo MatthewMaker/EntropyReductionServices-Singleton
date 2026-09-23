@@ -86,10 +86,10 @@ UNITY="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Un
 [ -x "$UNITY" ] || die "no Unity $UNITY_VERSION at $UNITY. The runtime suites are the release gate."
 note "Unity $UNITY_VERSION"
 
-# A rule sitting in Unshipped needs a prose entry written by a human under a new release heading.
-if grep -qE '^ERS[0-9]{4} \|' "$UNSHIPPED"; then
-    die "$UNSHIPPED still lists rules. Move them into $SHIPPED under a '## Release <version>' heading first."
-fi
+# Rules still in Unshipped are moved into Shipped as part of the release commit, not before it.
+# Doing it in an earlier commit would leave Shipped claiming a version package.json had not
+# reached yet, which the pre-commit hook rejects — there was no ordering that satisfied both.
+PENDING_RULES="$(grep -cE '^ERS[0-9]{4} \|' "$UNSHIPPED" || true)"
 
 CURRENT="$(python3 -c "import json;print(json.load(open('$PACKAGE_JSON'))['version'])")"
 NEXT="$(python3 - "$CURRENT" "$LEVEL" <<'PY'
@@ -108,6 +108,8 @@ PY
 git rev-parse --verify --quiet "refs/tags/v$NEXT" >/dev/null && die "tag v$NEXT already exists."
 
 note "current $CURRENT  ->  next $NEXT"
+[ "$PENDING_RULES" -gt 0 ] && note "$PENDING_RULES unshipped rule(s) will move into AnalyzerReleases.Shipped.md"
+
 
 grep -q '^## \[Unreleased\]' "$CHANGELOG" \
     || die "$CHANGELOG has no '## [Unreleased]' heading to promote to $NEXT."
@@ -178,6 +180,9 @@ if [ "$EXECUTE" -eq 0 ]; then
     note "set version $CURRENT -> $NEXT in package.json"
     note "regenerate Analyzers~/Version.props"
     note "promote '## [Unreleased]' to '## [$NEXT]' in CHANGELOG.md"
+    [ "$PENDING_RULES" -gt 0 ] \
+        && note "move $PENDING_RULES unshipped rule(s) into AnalyzerReleases.Shipped.md under '## Release $NEXT'"
+
     note "rebuild the analyzer and recommit $DLL"
     note "re-run all four suites, then commit and tag v$NEXT"
     [ "$PUSH" -eq 1 ] && note "push main --follow-tags"
@@ -213,6 +218,35 @@ path.write_text(text.replace("## [Unreleased]", f"## [{new}]", 1), encoding="utf
 print(f"    CHANGELOG.md -> ## [{new}]")
 PY
 
+if [ "$PENDING_RULES" -gt 0 ]; then
+    step "Moving $PENDING_RULES unshipped rule(s) into AnalyzerReleases.Shipped.md"
+    python3 - "$UNSHIPPED" "$SHIPPED" "$NEXT" <<'PY'
+import pathlib, re, sys
+
+unshipped, shipped, version = (pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3])
+
+# The leading ';' comment block is the file's own instructions and stays put; everything after it
+# is the pending release content, moved across verbatim so section headings survive.
+lines = unshipped.read_text(encoding="utf-8").splitlines(keepends=True)
+head = [line for line in lines if line.startswith(";")]
+body = "".join(lines[len(head):]).strip("\n")
+if not body:
+    raise SystemExit(f"{unshipped}: no content to move")
+
+text = shipped.read_text(encoding="utf-8")
+match = re.search(r"^## Release ", text, re.MULTILINE)
+if not match:
+    raise SystemExit(f"{shipped}: no existing '## Release' heading to insert above")
+
+# The release-tracking analyzer's format is strict: no blank line after the section heading.
+shipped.write_text(
+    text[:match.start()] + f"## Release {version}\n\n{body}\n\n" + text[match.start():],
+    encoding="utf-8")
+unshipped.write_text("".join(head), encoding="utf-8")
+print(f"    moved into '## Release {version}'")
+PY
+fi
+
 step "Rebuilding the analyzer DLL"
 # The csproj stamps the version into the assembly, so the bump above makes the committed DLL
 # stale by definition. CommittedAnalyzerVersionTests is what catches skipping this.
@@ -223,7 +257,11 @@ note "recommitted $DLL"
 verify
 
 step "Committing and tagging v$NEXT"
-git add -A
+git add "$PACKAGE_JSON" "$CHANGELOG" "$DLL" "$PKG/Analyzers~/Version.props" "$UNSHIPPED" "$SHIPPED"
+if [ -n "$(git status --porcelain --untracked-files=no | grep -v '^M ' || true)" ]; then
+    note "note: other tracked files were modified (Unity rewrites project settings in batch mode)"
+    note "they are NOT part of this commit; review them with git status afterwards"
+fi
 git commit -m "Release $NEXT"
 git tag -a "v$NEXT" -m "Release $NEXT"
 note "committed $(git rev-parse --short HEAD) and tagged v$NEXT"

@@ -15,6 +15,9 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     /// </summary>
     internal static class Probes
     {
+        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
+        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Probes).Assembly;
+
         /// <summary>
         /// Destroys every probe left behind by a test. DestroyImmediate rather than Destroy so
         /// OnDestroy — and therefore the slot release — happens before the next test starts,
@@ -23,9 +26,6 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         /// Sweeps by assembly rather than by an explicit type list, so a probe added without a
         /// matching teardown line cannot silently leak static state into the next test.
         /// </summary>
-        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
-        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Probes).Assembly;
-
         public static void PurgeAll()
         {
             foreach (var probe in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
