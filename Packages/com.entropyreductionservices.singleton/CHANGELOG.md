@@ -4,6 +4,22 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- `Instance` resolves in fewer Unity API calls once the singleton exists. The three resolution
+  steps it ran on every access — scene search, `Resources` probe, create — each already returned
+  immediately when the slot was filled, but reaching them cost four session-guarded reads of the
+  cached reference plus repeated `Application.isPlaying` and `Time.frameCount` calls. A resolved
+  access now takes one such read. The cache guarantees are unchanged: the session guard and the
+  fake-null collapse still run, once.
+
+- `SingletonRuntime.IsUnloadingScene` no longer reads `Time.frameCount` when no scene unload has
+  destroyed a singleton this session.
+
+No behaviour change in either case, and no change to the analyzer rules.
+
 ## [2.2.0]
 
 ### Added
