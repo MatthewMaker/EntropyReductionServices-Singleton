@@ -67,8 +67,9 @@ namespace EntropyReductionServices.Singletons
 
         /// <summary>
         /// Do not resolve at all outside play mode. Reading Instance there throws
-        /// MissingSingletonException immediately, without looking for an instance. Guard the call
-        /// site with Application.isPlaying.
+        /// MissingSingletonException immediately, without looking for an instance, and
+        /// ExistsOrFindInScene does not search either — so every accessor agrees that nothing is
+        /// available, whatever is in the scene. Guard the call site with Application.isPlaying.
         /// </summary>
         Disabled
     }
@@ -332,6 +333,19 @@ namespace EntropyReductionServices.Singletons
             Application.isPlaying || EditModePolicy == SingletonEditModePolicy.CreateTransient;
 
         /// <summary>
+        /// True when this type is allowed to resolve an *existing* instance in the current mode.
+        /// Disabled means "do not resolve at all outside play mode", which has to bind the search
+        /// as well as creation: a search that caches an instance the policy forbids leaves
+        /// ExistsOrFindInScene reporting true and TryGetInstance handing out an object while
+        /// Instance still throws.
+        ///
+        /// isPlaying is tested first so the attribute reflection behind EditModePolicy is
+        /// short-circuited away in a player build, exactly as in Instance.
+        /// </summary>
+        protected static bool MayResolve =>
+            Application.isPlaying || EditModePolicy != SingletonEditModePolicy.Disabled;
+
+        /// <summary>
         /// Flags an edit-mode creation as non-serializable. Without this, an object created because
         /// an inspector or [ExecuteAlways] component touched Instance is a real member of the open
         /// scene (or of whatever prefab stage is open) and is committed on save, with no undo entry.
@@ -420,6 +434,12 @@ namespace EntropyReductionServices.Singletons
             if (SingletonRuntime.IsQuitting)
             {
                 Log("MaybeFindInScene skipped: application is quitting.");
+                return;
+            }
+
+            if (!MayResolve)
+            {
+                Log("MaybeFindInScene skipped: edit-mode resolution is disabled for this type.");
                 return;
             }
 
@@ -721,12 +741,7 @@ namespace EntropyReductionServices.Singletons
         {
             get
             {
-                // isPlaying first, deliberately. Testing EditModePolicy ahead of it would be one
-                // managed compare instead of one native call in the steady state, but it also
-                // forces the attribute reflection behind EditModePolicy to run on the first
-                // access of every type in a player build — where this short-circuit means it
-                // currently never runs at all.
-                if (!Application.isPlaying && EditModePolicy == SingletonEditModePolicy.Disabled)
+                if (!MayResolve)
                     throw new MissingSingletonException(PolicyViolationMessage());
 
                 // Fast path. All three helpers below open with "if (Current != null) return", so

@@ -116,6 +116,25 @@ namespace EntropyReductionServices.Singletons.Tests
         }
 
         [Test]
+        public void Disabled_DoesNotResolveEvenWhenAnInstanceIsInTheScene()
+        {
+            // Disabled means "do not resolve at all outside play mode", and that has to bind the
+            // search as well as creation. It did not: MaybeFindInScene consulted only IsQuitting,
+            // so ExistsOrFindInScene resolved and cached an instance the policy forbade, leaving
+            // TryGetInstance handing out a live object while Instance threw for the same type.
+            Fixtures.Author<AutoEditModeDisabledWithSceneInstance>("Authored Disabled");
+
+            Assert.IsFalse(AutoEditModeDisabledWithSceneInstance.ExistsOrFindInScene());
+            Assert.IsFalse(AutoEditModeDisabledWithSceneInstance.Exists);
+            Assert.IsFalse(AutoEditModeDisabledWithSceneInstance.IsAvailable);
+            Assert.IsFalse(AutoEditModeDisabledWithSceneInstance.TryGetInstance(out _));
+            Assert.Throws<MissingSingletonException>(() =>
+            {
+                _ = AutoEditModeDisabledWithSceneInstance.Instance;
+            });
+        }
+
+        [Test]
         public void KnownGap_PlainFlavourNeverClaimsTheSlotOrDestroysDuplicates()
         {
             // Documented under KNOWN GAPS in MonoBehaviourSingleton.cs: this flavour declares no

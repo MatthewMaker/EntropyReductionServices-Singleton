@@ -116,6 +116,11 @@ namespace EntropyReductionServices.Singletons.Tests
     [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
     internal class AutoEditModeFindOnlyAvailability : MonoBehaviourSingleton<AutoEditModeFindOnlyAvailability> { }
 
+    [ExecuteAlways]
+    [SingletonEditMode(SingletonEditModePolicy.Disabled)]
+    internal class AutoEditModeDisabledWithSceneInstance
+        : MonoBehaviourSingleton<AutoEditModeDisabledWithSceneInstance> { }
+
     // --- MonoBehaviourSingletonPersistent<T> --------------------------------------------------
 
     [ExecuteAlways] internal class PersistentClaims : MonoBehaviourSingletonPersistent<PersistentClaims> { }

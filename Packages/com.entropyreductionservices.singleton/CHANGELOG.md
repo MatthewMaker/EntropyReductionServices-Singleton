@@ -20,6 +20,18 @@ All notable changes to this package are documented here. The format follows
 
 No behaviour change in either case, and no change to the analyzer rules.
 
+### Fixed
+
+- `[SingletonEditMode(SingletonEditModePolicy.Disabled)]` now suppresses the scene search as well
+  as creation. `MaybeFindInScene` consulted only `Application.quitting`, so `ExistsOrFindInScene()`
+  resolved and cached an instance the policy forbade — leaving `Exists`, `IsAvailable` and
+  `TryGetInstance` reporting a live singleton while `Instance` threw `MissingSingletonException`
+  for the same type. All the accessors now agree with `Instance`.
+
+  Affects `Disabled` types only, and only outside play mode. If you relied on
+  `ExistsOrFindInScene()` finding a scene instance for a `Disabled` type, use `FindOnly`, which is
+  the policy that means "resolve from the scene, never create".
+
 ## [2.2.0]
 
 ### Added
