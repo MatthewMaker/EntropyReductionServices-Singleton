@@ -6,6 +6,10 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- No code changes from 2.4.0.
+
 ## [2.4.0]
 
 ### Fixed

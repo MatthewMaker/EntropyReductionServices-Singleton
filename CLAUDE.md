@@ -33,9 +33,13 @@ scripts/release.sh minor --execute       # bump, rebuild, verify, commit, tag (l
 scripts/release.sh 2.3.1 --execute --push
 ```
 
+`--skip-unity` drops the Unity suites and the editor-installed check, for a machine without Unity.
+Use it only when the runtime code matches a commit whose suites you have already run; the tag
+message records that they were skipped.
+
 It is a local script rather than a workflow because the Unity suites are the release gate and CI
 cannot run them. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
-matching Unity editor is installed, and `CHANGELOG.md` has an `## [Unreleased]` heading to
+matching Unity editor is installed (unless `--skip-unity`), and `CHANGELOG.md` has an `## [Unreleased]` heading to
 promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocker — the script
 moves them into `AnalyzerReleases.Shipped.md` under the new version as part of the release commit. Pushing is a separate flag: a
 local tag is trivially deletable, a pushed one triggers publication.

@@ -10,10 +10,15 @@
 #     scripts/release.sh minor                # plan + verify, write nothing
 #     scripts/release.sh minor --execute      # bump, rebuild, verify, commit, tag
 #     scripts/release.sh 2.3.1 --execute --push
+#     scripts/release.sh patch --execute --skip-unity
 #
 # The verification step runs the Unity EditMode and PlayMode suites, which CI cannot: the Unity
 # job has no licence and exhausts the runner's disk on the editor image. That is the whole reason
 # this is a local script rather than a workflow_dispatch job.
+#
+# --skip-unity drops the Unity suites and the check that the editor is installed, for machines
+# without Unity. The analyzer steps still run. It is only sound when the runtime code is identical
+# to a commit whose Unity suites you have already run; the tag message records that they were not.
 #
 # There is no separate backup step. The script refuses to run on a dirty tree, so every file it
 # touches is committed and `git checkout -- .` is the rollback.
@@ -32,6 +37,7 @@ DLL="$PKG/Runtime/Analyzers/ERS.Singleton.Analyzers.dll"
 
 EXECUTE=0
 PUSH=0
+SKIP_UNITY=0
 LEVEL=""
 
 die()  { printf '\nerror: %s\n' "$*" >&2; exit 1; }
@@ -39,7 +45,7 @@ step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
 
 usage() {
-    sed -n '3,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -50,10 +56,11 @@ for arg in "$@"; do
     case "$arg" in
         --execute) EXECUTE=1 ;;
         --push)    PUSH=1 ;;
+        --skip-unity) SKIP_UNITY=1 ;;
         -h|--help) usage 0 ;;
         major|minor|patch) LEVEL="$arg" ;;
         [0-9]*.[0-9]*.[0-9]*) LEVEL="$arg" ;;
-        *) die "unrecognised argument '$arg'. Expected major|minor|patch|x.y.z, --execute, --push." ;;
+        *) die "unrecognised argument '$arg'. Expected major|minor|patch|x.y.z, --execute, --push, --skip-unity." ;;
     esac
 done
 
@@ -83,8 +90,12 @@ fi
 # Unity is resolved from the project's own version, never hardcoded.
 UNITY_VERSION="$(awk -F': ' '/^m_EditorVersion:/ {print $2}' ProjectSettings/ProjectVersion.txt | tr -d '\r')"
 UNITY="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
-[ -x "$UNITY" ] || die "no Unity $UNITY_VERSION at $UNITY. The runtime suites are the release gate."
-note "Unity $UNITY_VERSION"
+if [ "$SKIP_UNITY" -eq 1 ]; then
+    note "Unity suites SKIPPED (--skip-unity). Only sound if the runtime code is already tested."
+else
+    [ -x "$UNITY" ] || die "no Unity $UNITY_VERSION at $UNITY. The runtime suites are the release gate."
+    note "Unity $UNITY_VERSION"
+fi
 
 # Rules still in Unshipped are moved into Shipped as part of the release commit, not before it.
 # Doing it in an earlier commit would leave Shipped claiming a version package.json had not
@@ -141,6 +152,10 @@ verify() {
   fired:    $(echo "$fired" | tr '\n' ' ')"
     note "committed DLL fires: $(echo "$fired" | tr '\n' ' ')"
 
+    if [ "$SKIP_UNITY" -eq 1 ]; then
+        step "4/4  Unity runtime suites — SKIPPED (--skip-unity)"
+        return
+    fi
     step "4/4  Unity runtime suites"
     run_unity EditMode
     run_unity PlayMode
@@ -184,7 +199,11 @@ if [ "$EXECUTE" -eq 0 ]; then
         && note "move $PENDING_RULES unshipped rule(s) into AnalyzerReleases.Shipped.md under '## Release $NEXT'"
 
     note "rebuild the analyzer and recommit $DLL"
-    note "re-run all four suites, then commit and tag v$NEXT"
+    if [ "$SKIP_UNITY" -eq 1 ]; then
+        note "re-run the analyzer suites (Unity skipped), then commit and tag v$NEXT"
+    else
+        note "re-run all four suites, then commit and tag v$NEXT"
+    fi
     [ "$PUSH" -eq 1 ] && note "push main --follow-tags"
     printf '\nNothing was written. Re-run with --execute to perform the release.\n'
     exit 0
@@ -272,7 +291,11 @@ if [ -n "$(git status --porcelain --untracked-files=no | grep -v '^M ' || true)"
     note "they are NOT part of this commit; review them with git status afterwards"
 fi
 git commit -m "Release $NEXT"
-git tag -a "v$NEXT" -m "Release $NEXT"
+if [ "$SKIP_UNITY" -eq 1 ]; then
+    git tag -a "v$NEXT" -m "Release $NEXT" -m "Unity suites were not run for this tag (--skip-unity)."
+else
+    git tag -a "v$NEXT" -m "Release $NEXT"
+fi
 note "committed $(git rev-parse --short HEAD) and tagged v$NEXT"
 
 if [ "$PUSH" -eq 1 ]; then
