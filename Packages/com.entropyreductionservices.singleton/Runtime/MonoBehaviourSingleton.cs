@@ -54,10 +54,22 @@ namespace EntropyReductionServices.Singletons
         /// </summary>
         CreateTransient,
 
-        /// <summary>Resolve from loaded scenes only; never create. Instance may be null.</summary>
+        /// <summary>
+        /// Resolve from the loaded scenes only; never create. Outside play mode, reading Instance
+        /// when no instance is in the scene throws MissingSingletonException rather than returning
+        /// null.
+        ///
+        /// Guard with ExistsOrFindInScene(), which is the only accessor that searches. IsAvailable,
+        /// Exists and TryGetInstance read the cache alone, so under this policy they all report
+        /// false while an instance is sitting in the loaded scene, until something resolves it.
+        /// </summary>
         FindOnly,
 
-        /// <summary>Do not resolve at all outside play mode. Instance is always null.</summary>
+        /// <summary>
+        /// Do not resolve at all outside play mode. Reading Instance there throws
+        /// MissingSingletonException immediately, without looking for an instance. Guard the call
+        /// site with Application.isPlaying.
+        /// </summary>
         Disabled
     }
 
@@ -684,7 +696,8 @@ namespace EntropyReductionServices.Singletons
     /// Lazy singleton: resolves from the scene, then Resources, then an empty GameObject.
     /// It will not resurrect itself during teardown — application quit or scene unload — which is
     /// what produced "leaked GameObject" warnings. Instance hands back the destroyed component in
-    /// that window, and can still return null outside play mode.
+    /// that window. Outside play mode it either resolves or throws MissingSingletonException,
+    /// depending on [SingletonEditMode] — it does not return null.
     /// </summary>
     public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingleton<T>

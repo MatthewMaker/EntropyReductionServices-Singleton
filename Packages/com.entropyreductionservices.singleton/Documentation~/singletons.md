@@ -214,6 +214,11 @@ public class DeviceLink : MonoBehaviourSingleton<DeviceLink> { }
 Requesting `Instance` from an opted-out type outside play mode throws `MissingSingletonException`,
 naming the policy.
 
+Under `FindOnly`, guard with `ExistsOrFindInScene()` — it is the only accessor that searches the
+loaded scenes. `IsAvailable`, `Exists` and `TryGetInstance` read the cache alone, so before
+anything has resolved they all report false even when an instance is sitting in the scene. Under
+`Disabled` there is nothing to search for; guard with `Application.isPlaying`.
+
 ## Configuration
 
 **Resources path.** Auto-creating flavors try `Resources.Load<T>` before creating a bare object,

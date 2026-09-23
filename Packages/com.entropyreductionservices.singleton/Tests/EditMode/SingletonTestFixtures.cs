@@ -101,6 +101,21 @@ namespace EntropyReductionServices.Singletons.Tests
     [SingletonEditMode(SingletonEditModePolicy.Disabled)]
     internal class AutoEditModeDisabled : MonoBehaviourSingleton<AutoEditModeDisabled> { }
 
+    // FindOnly needs two probe types: the policy's whole point is that the answer differs
+    // between a scene that holds an instance and one that does not, and the cache is a static on
+    // the closed generic, so one type cannot be asked both questions in the same run.
+    [ExecuteAlways]
+    [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
+    internal class AutoEditModeFindOnlyPresent : MonoBehaviourSingleton<AutoEditModeFindOnlyPresent> { }
+
+    [ExecuteAlways]
+    [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
+    internal class AutoEditModeFindOnlyAbsent : MonoBehaviourSingleton<AutoEditModeFindOnlyAbsent> { }
+
+    [ExecuteAlways]
+    [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
+    internal class AutoEditModeFindOnlyAvailability : MonoBehaviourSingleton<AutoEditModeFindOnlyAvailability> { }
+
     // --- MonoBehaviourSingletonPersistent<T> --------------------------------------------------
 
     [ExecuteAlways] internal class PersistentClaims : MonoBehaviourSingletonPersistent<PersistentClaims> { }

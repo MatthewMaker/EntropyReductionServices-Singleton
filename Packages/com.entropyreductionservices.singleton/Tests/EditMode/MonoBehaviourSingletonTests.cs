@@ -80,6 +80,42 @@ namespace EntropyReductionServices.Singletons.Tests
         }
 
         [Test]
+        public void Instance_WhenEditModeIsFindOnly_ResolvesAnAuthoredInstance()
+        {
+            var authored = Fixtures.Author<AutoEditModeFindOnlyPresent>("Authored FindOnly");
+            Assert.AreSame(authored, AutoEditModeFindOnlyPresent.Instance);
+        }
+
+        [Test]
+        public void Instance_WhenEditModeIsFindOnlyAndSceneIsEmpty_ThrowsMissingSingleton()
+        {
+            // FindOnly never creates, and Instance does not return null on a policy violation —
+            // it throws, exactly as Disabled does. The enum's doc comment claimed null until the
+            // behaviour was checked against it.
+            Assert.IsFalse(AutoEditModeFindOnlyAbsent.IsAvailable);
+            Assert.Throws<MissingSingletonException>(() =>
+            {
+                _ = AutoEditModeFindOnlyAbsent.Instance;
+            });
+        }
+
+        [Test]
+        public void FindOnly_OnlyExistsOrFindInSceneConsultsTheScene()
+        {
+            // The trap this policy sets. IsAvailable, Exists and TryGetInstance all read the
+            // cache alone, so they report false while an instance is sitting in the loaded scene.
+            // ExistsOrFindInScene is the one that searches, and so the guard FindOnly code needs.
+            Fixtures.Author<AutoEditModeFindOnlyAvailability>("Authored FindOnly availability");
+
+            Assert.IsFalse(AutoEditModeFindOnlyAvailability.IsAvailable);
+            Assert.IsFalse(AutoEditModeFindOnlyAvailability.Exists);
+            Assert.IsFalse(AutoEditModeFindOnlyAvailability.TryGetInstance(out _));
+
+            Assert.IsTrue(AutoEditModeFindOnlyAvailability.ExistsOrFindInScene());
+            Assert.IsTrue(AutoEditModeFindOnlyAvailability.IsAvailable);   // cached by the search
+        }
+
+        [Test]
         public void KnownGap_PlainFlavourNeverClaimsTheSlotOrDestroysDuplicates()
         {
             // Documented under KNOWN GAPS in MonoBehaviourSingleton.cs: this flavour declares no
