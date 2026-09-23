@@ -95,6 +95,11 @@ namespace EntropyReductionServices.Singletons.Tests
     [ExecuteAlways] internal class AutoFindsWithoutCreating : MonoBehaviourSingleton<AutoFindsWithoutCreating> { }
     [ExecuteAlways] internal class AutoDuplicatesSurvive : MonoBehaviourSingleton<AutoDuplicatesSurvive> { }
     [ExecuteAlways] internal class AutoResolveOrder : MonoBehaviourSingleton<AutoResolveOrder> { }
+    // Hosts for the editor-side shared-host validator. No [ExecuteAlways]: the validator inspects
+    // authored components, and running their Awake would claim slots these tests never use.
+    internal class ValidatorPersistentHost : MonoBehaviourSingletonPersistent<ValidatorPersistentHost> { }
+    internal class ValidatorSecondHost : MonoBehaviourSingletonPassive<ValidatorSecondHost> { }
+
     [ExecuteAlways] internal class AutoTransient : MonoBehaviourSingleton<AutoTransient> { }
 
     [ExecuteAlways]

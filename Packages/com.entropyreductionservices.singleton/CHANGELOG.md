@@ -17,6 +17,20 @@ All notable changes to this package are documented here. The format follows
 
   Override to force either answer. Existing `=> false` overrides keep working unchanged; an
   explicit `=> true` is now the way to get the old unconditional behaviour.
+
+### Added
+
+- **An editor-side validator for shared singleton hosts**, at *Tools > Entropy Reduction Services >
+  Validate Singleton Hosts*. It also runs on every scene save, and reports two cases: more than one
+  singleton on a GameObject, and a persistent singleton sharing its host with ordinary components
+  that `DontDestroyOnLoad` will drag along with it. Warnings carry the object as their log context,
+  so clicking one selects it.
+
+  It is an editor tool because it cannot be anything else. A shared host is scene data, invisible
+  to the analyzers, and the runtime cannot repair it — a `Component` cannot be moved to another
+  `GameObject`, so relocating an authored singleton would mean recreating it and discarding its
+  serialized state. Ships in its own Editor-only assembly, so the runtime keeps its no-`UnityEditor`
+  dependency.
 ## [2.3.0]
 
 ### Changed

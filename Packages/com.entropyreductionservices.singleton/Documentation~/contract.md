@@ -92,7 +92,12 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   that deduplicates. A duplicate now destroys only itself when its host carries anything else, so a
   sibling singleton is no longer collateral; the host does still travel as one object, so a
   persistent flavour reparents its siblings to the scene root and makes them persistent too. See
-  `DestroyWholeGameObject`.
+  `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Hosts*,
+  which reports both cases in the loaded scenes and on every scene save.
+
+  There is no runtime fix for this and there cannot be one: a `Component` cannot be moved to
+  another `GameObject`, so nothing can relocate an authored singleton without discarding its
+  serialized state. It is caught where it is authored or not at all.
 - **Unguarded `OnDestroy` / `OnApplicationQuit` access to a `UnityEngine` member** of the
   singleton. Your own members are fine there. ERS0003. See [Teardown](#teardown).
 

@@ -3,6 +3,7 @@
     "rootNamespace": "EntropyReductionServices.Singletons.Tests",
     "references": [
         "EntropyReductionServices.Singletons",
+        "EntropyReductionServices.Singletons.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
