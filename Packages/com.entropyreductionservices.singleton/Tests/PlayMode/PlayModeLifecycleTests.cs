@@ -142,5 +142,59 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
 
             Object.DestroyImmediate(winner);
         }
+
+        /// <summary>
+        /// A stateless persistent singleton on a shared host rebuilds itself on a GameObject named
+        /// for the type, leaving the host and its siblings in the scene.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PersistentOnASharedHost_RebuildsOnItsOwnObject()
+        {
+            var host = new GameObject("Managers");
+            host.SetActive(false);
+            host.AddComponent<ExtractStateless>();
+            var sibling = host.AddComponent<AudioSource>();
+            host.SetActive(true);
+
+            yield return null;
+
+            Assert.IsTrue(host != null, "the shared host must stay in the scene");
+            Assert.IsTrue(sibling != null, "the sibling must stay on it");
+            Assert.IsFalse(Probes.IsPersistent(host), "the shared host must not be persisted");
+
+            var instance = ExtractStateless.Instance;
+            Assert.IsTrue(instance != null);
+            Assert.AreNotSame(host, instance.gameObject, "the singleton must be on a new object");
+            Assert.AreEqual(nameof(ExtractStateless), instance.gameObject.name);
+            Assert.IsTrue(Probes.IsPersistent(instance.gameObject), "the new object must be persisted");
+
+            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(instance.gameObject);
+        }
+
+        /// <summary>
+        /// With serialized fields there is authored state to lose, so extraction declines and the
+        /// old behaviour stands: the whole host is persisted, siblings included.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PersistentWithSerializedFields_DeclinesToRebuild()
+        {
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(
+                @"ExtractStateful is persistent but shares 'Stateful Managers'"));
+
+            var host = new GameObject("Stateful Managers");
+            host.SetActive(false);
+            var singleton = host.AddComponent<ExtractStateful>();
+            host.AddComponent<AudioSource>();
+            host.SetActive(true);
+
+            yield return null;
+
+            Assert.AreSame(singleton, ExtractStateful.Instance, "the authored component must survive");
+            Assert.AreSame(host, ExtractStateful.Instance.gameObject);
+            Assert.IsTrue(Probes.IsPersistent(host), "the shared host is persisted, as before");
+
+            Object.DestroyImmediate(host);
+        }
     }
 }

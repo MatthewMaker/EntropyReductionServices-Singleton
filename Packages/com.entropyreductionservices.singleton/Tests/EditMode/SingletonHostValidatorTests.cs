@@ -35,16 +35,26 @@ namespace EntropyReductionServices.Singletons.Tests
         }
 
         [Test]
-        public void PersistentSingletonWithAnOrdinaryComponent_IsReported()
+        public void StatefulPersistentSingletonWithAnOrdinaryComponent_IsReported()
         {
             _host = new GameObject("Audio");
-            _host.AddComponent<ValidatorPersistentHost>();
+            _host.AddComponent<ValidatorStatefulHost>();
             _host.AddComponent<AudioSource>();   // dragged to DontDestroyOnLoad on play
 
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(
-                @"hosts the persistent singleton 'ValidatorPersistentHost' alongside AudioSource"));
+                @"hosts the persistent singleton 'ValidatorStatefulHost' alongside AudioSource"));
 
             Assert.GreaterOrEqual(SingletonHostValidator.ValidateLoadedScenes(), 1);
+        }
+
+        [Test]
+        public void StatelessPersistentSingleton_IsNotReported_BecauseItRebuildsItself()
+        {
+            _host = new GameObject("Audio");
+            _host.AddComponent<ValidatorPersistentHost>();   // no serialized fields
+            _host.AddComponent<AudioSource>();
+
+            Assert.AreEqual(0, SingletonHostValidator.ValidateLoadedScenes());
         }
 
         [Test]

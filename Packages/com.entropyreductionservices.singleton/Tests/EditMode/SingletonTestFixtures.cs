@@ -100,6 +100,12 @@ namespace EntropyReductionServices.Singletons.Tests
     internal class ValidatorPersistentHost : MonoBehaviourSingletonPersistent<ValidatorPersistentHost> { }
     internal class ValidatorSecondHost : MonoBehaviourSingletonPassive<ValidatorSecondHost> { }
 
+    internal class ValidatorStatefulHost : MonoBehaviourSingletonPersistent<ValidatorStatefulHost>
+    {
+        [SerializeField] private int _configured;
+        public int Configured => _configured;
+    }
+
     [ExecuteAlways] internal class AutoTransient : MonoBehaviourSingleton<AutoTransient> { }
 
     [ExecuteAlways]

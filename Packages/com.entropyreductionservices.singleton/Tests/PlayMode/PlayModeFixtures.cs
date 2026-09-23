@@ -134,6 +134,17 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class SharedHostBystander : MonoBehaviourSingletonPassive<SharedHostBystander> { }
     internal class SharedHostAlone : MonoBehaviourSingletonPassive<SharedHostAlone> { }
 
+    // Extraction probes. Stateless: nothing Unity would serialize, so rebuilding on a dedicated
+    // host loses nothing and the runtime is allowed to do it.
+    internal class ExtractStateless : MonoBehaviourSingletonPersistent<ExtractStateless> { }
+
+    // Has a serialized field, so extraction must decline and persist the shared host instead.
+    internal class ExtractStateful : MonoBehaviourSingletonPersistent<ExtractStateful>
+    {
+        [SerializeField] private int _configured;
+        public int Configured => _configured;
+    }
+
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }

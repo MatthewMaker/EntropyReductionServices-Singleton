@@ -17,6 +17,7 @@
 //#define SINGLETON_DEBUG_GET
 
 using System;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -121,6 +122,42 @@ namespace EntropyReductionServices.Singletons
         /// Application.quitting rather than inferred from hideFlags, so it is actually reliable.
         /// </summary>
         public static bool IsQuitting { get; private set; }
+
+        /// <summary>
+        /// True when the singleton type declares anything Unity would serialize, ignoring members
+        /// of the singleton base classes themselves.
+        ///
+        /// Decides whether a persistent singleton on a shared host may be rebuilt on an object of
+        /// its own: with no serialized state there is nothing for the rebuild to lose. Non-generic
+        /// so the editor-side validator can ask exactly the same question the runtime asks, rather
+        /// than keeping a second copy of the rule that drifts.
+        ///
+        /// Deliberately conservative — any public or [SerializeField] instance field counts,
+        /// without asking whether its type is actually serializable. Answering "has state" when it
+        /// does not merely declines a rebuild; the opposite would discard authored data.
+        /// </summary>
+        public static bool DeclaresSerializedFields(Type type)
+        {
+            const BindingFlags Declared =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+
+            for (var current = type; current != null; current = current.BaseType)
+            {
+                if (current.IsGenericType &&
+                    current.GetGenericTypeDefinition() == typeof(MonoBehaviourSingletonBase<>))
+                    break;
+
+                foreach (var field in current.GetFields(Declared))
+                {
+                    if (field.IsNotSerialized) continue;               // [NonSerialized]
+                    if (field.IsInitOnly || field.IsLiteral) continue; // readonly and const are not serialized
+
+                    if (field.IsPublic || field.IsDefined(typeof(SerializeField), true)) return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// The frame in which a singleton was last seen being destroyed by a scene unload.
@@ -651,6 +688,12 @@ namespace EntropyReductionServices.Singletons
             // transient is already effectively persistent: DontSave survives scene loads.
             if (!Application.isPlaying) return;
 
+            // DontDestroyOnLoad is GameObject-scoped, so persisting a shared host reparents every
+            // sibling to the scene root and makes them persistent too. A Component cannot be moved
+            // between GameObjects, so the only way out is to rebuild this one on an object of its
+            // own — which is safe exactly when the type has no serialized state to lose.
+            if (!AloneOnHost && TryExtractToOwnHost()) return;
+
             DetachIfNotRoot();
             DontDestroyOnLoad(gameObject);
             Annotate(this, "(!)");
@@ -686,7 +729,21 @@ namespace EntropyReductionServices.Singletons
         /// stripped GameObject behind is cheaper than silently breaking another component's
         /// contract. Override to force either answer.
         /// </summary>
-        protected virtual bool DestroyWholeGameObject => gameObject.GetComponents<Component>().Length <= 2;
+        protected virtual bool DestroyWholeGameObject => AloneOnHost;
+
+        /// <summary>
+        /// True when the Transform and this component are all that is on the host, so nothing else
+        /// is affected by what happens to the GameObject.
+        /// </summary>
+        protected bool AloneOnHost => gameObject.GetComponents<Component>().Length <= 2;
+
+        private static bool s_warnedSharedHost;
+
+        /// <summary>Resolved once per type; the rule itself lives on SingletonRuntime.</summary>
+        private static bool HasSerializedFields =>
+            s_hasSerializedFields ??= SingletonRuntime.DeclaresSerializedFields(typeof(T));
+
+        private static bool? s_hasSerializedFields;
 
         /// <summary>Removes this component (or its GameObject) because the slot is already filled.</summary>
         protected virtual void DestroyDuplicate()
@@ -700,6 +757,57 @@ namespace EntropyReductionServices.Singletons
             Log($"destroying duplicate; live instance is {Current}.", this);
             Annotate(Current, "(+)");
             DestroySafe(DestroyWholeGameObject ? (Object)gameObject : this);
+        }
+
+        /// <summary>
+        /// Rebuilds this singleton on a GameObject of its own, named for the type, so persisting it
+        /// does not drag the rest of a shared host into DontDestroyOnLoad. Returns false when it
+        /// declines, leaving the caller to persist the shared host as before.
+        ///
+        /// Only for types with no serialized fields, because this destroys the authored component
+        /// and constructs a replacement. What that costs even so, and what no check here can see:
+        /// serialized references *to* this component — an inspector field or a UnityEvent wired to
+        /// it — break, and the subclass's own Awake body runs on this instance and again on the
+        /// replacement. Give the type serialized fields, or put it on its own object, to opt out.
+        /// </summary>
+        private bool TryExtractToOwnHost()
+        {
+            if (HasSerializedFields)
+            {
+                if (!s_warnedSharedHost)
+                {
+                    s_warnedSharedHost = true;
+                    Debug.LogWarning(
+                        $"[SINGLETON] {typeof(T).Name} is persistent but shares '{gameObject.name}' with " +
+                        "other components, and has serialized fields, so it cannot be rebuilt on its own " +
+                        "object without losing them. The whole GameObject will be reparented to the scene " +
+                        "root and marked DontDestroyOnLoad. Move the singleton onto its own object.",
+                        this);
+                }
+
+                return false;
+            }
+
+            // Release the slot first: the replacement claims it in its own Awake, and would
+            // otherwise see a live instance and destroy itself as a duplicate.
+            var doomed = this;
+            s_instance = null;
+
+            var host = new GameObject(typeof(T).Name);
+            var replacement = host.AddComponent<T>();   // Awake runs here, claims the slot, persists
+
+            if (!ReferenceEquals(Current, replacement))
+            {
+                Log("extraction did not take; restoring the original.", doomed);
+                Current = (T)doomed;
+                DestroySafe(host);
+                return false;
+            }
+
+            Log($"rebuilt on '{host.name}' to keep '{doomed.gameObject.name}' out of DontDestroyOnLoad.",
+                replacement);
+            DestroySafe(doomed);   // the component only; the shared host and its siblings stay
+            return true;
         }
 
         /// <summary>

@@ -17,6 +17,10 @@ namespace EntropyReductionServices.Singletons.Editor
     /// neither is a fix: a Component cannot be moved to another GameObject at runtime, so nothing
     /// can relocate an authored singleton without discarding its serialized state.
     ///
+    /// A stateless persistent singleton rebuilds itself on a dedicated object at runtime, so this
+    /// reports only what that cannot fix: a persistent singleton with serialized fields, and any
+    /// GameObject carrying more than one singleton.
+    ///
     /// Lives in its own Editor-only assembly so the runtime keeps the "no UnityEditor dependency"
     /// goal in Documentation~/contract.md.
     /// </summary>
@@ -85,7 +89,11 @@ namespace EntropyReductionServices.Singletons.Editor
                     host);
             }
 
-            var persistent = singletons.FirstOrDefault(s => IsPersistent(s.GetType()));
+            // Only the ones that cannot rebuild themselves. A stateless persistent singleton is
+            // moved onto its own object at runtime, so warning about it here would be noise about
+            // a problem that resolves itself.
+            var persistent = singletons.FirstOrDefault(
+                s => IsPersistent(s.GetType()) && SingletonRuntime.DeclaresSerializedFields(s.GetType()));
             if (persistent == null) return problems;
 
             // Transform plus the singletons themselves are expected; anything else is dragged along.
@@ -101,9 +109,11 @@ namespace EntropyReductionServices.Singletons.Editor
                 Debug.LogWarning(
                     $"[SINGLETON] '{Path(host)}' hosts the persistent singleton " +
                     $"'{persistent.GetType().Name}' alongside " +
-                    $"{string.Join(", ", bystanders.Select(b => b.GetType().Name))}. On play the " +
-                    "whole GameObject is reparented to the scene root and marked DontDestroyOnLoad, " +
-                    $"so those come too. Move '{persistent.GetType().Name}' onto its own object.",
+                    $"{string.Join(", ", bystanders.Select(b => b.GetType().Name))}. It has serialized " +
+                    "fields, so it cannot be rebuilt on an object of its own without losing them. On " +
+                    "play the whole GameObject is reparented to the scene root and marked " +
+                    $"DontDestroyOnLoad, so those come too. Move '{persistent.GetType().Name}' onto its " +
+                    "own object.",
                     host);
             }
 

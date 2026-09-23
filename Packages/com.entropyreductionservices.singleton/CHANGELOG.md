@@ -18,6 +18,17 @@ All notable changes to this package are documented here. The format follows
   Override to force either answer. Existing `=> false` overrides keep working unchanged; an
   explicit `=> true` is now the way to get the old unconditional behaviour.
 
+- **A persistent singleton with no serialized fields is rebuilt on its own GameObject** when it
+  shares a host, instead of dragging the siblings into `DontDestroyOnLoad`. The new object is named
+  for the type. A `Component` cannot be moved between `GameObject`s, so this destroys the authored
+  component and constructs a replacement — which is why it is limited to types with no serialized
+  state to lose.
+
+  Two costs it cannot detect: serialized references *to* the component break, and the subclass's
+  `Awake` body runs on both the original and the replacement. Adding a serialized field opts the
+  type out, as does putting it on its own object. Types with serialized fields behave as before,
+  and now log a warning naming the host.
+
 ### Added
 
 - **An editor-side validator for shared singleton hosts**, at *Tools > Entropy Reduction Services >

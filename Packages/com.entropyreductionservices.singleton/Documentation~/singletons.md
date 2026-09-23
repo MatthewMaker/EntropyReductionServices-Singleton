@@ -242,6 +242,18 @@ protected override bool DestroyWholeGameObject => false;   // never take the hos
 protected override bool DestroyWholeGameObject => true;    // always take the host
 ```
 
+**Persistent singletons on a shared object.** `DontDestroyOnLoad` moves the whole `GameObject`, so
+a persistent singleton sharing its host drags every sibling into the persistent scene. A singleton
+with no serialized fields is rebuilt on an object of its own named for the type, and the host stays
+put. One with serialized fields cannot be — there is authored state that a rebuild would discard —
+so the host is persisted and *Tools > Entropy Reduction Services > Validate Singleton Hosts* reports
+it.
+
+Note what the rebuild costs even when it is allowed: the component is destroyed and replaced, so
+anything holding a serialized reference to it — an inspector field, a `UnityEvent` — is left
+pointing at nothing, and the subclass's `Awake` body runs on both instances. Put the singleton on
+its own object and neither happens.
+
 **Debug tracing.** Uncomment `SINGLETON_DEBUG` (lifecycle events) or `SINGLETON_DEBUG_GET` (every
 `Instance` read) at the top of `MonoBehaviourSingleton.cs`. Both are `[Conditional]`, so they cost
 nothing when off. They also enable name-suffix annotations — `(!)` for persistent, `(+)` for a

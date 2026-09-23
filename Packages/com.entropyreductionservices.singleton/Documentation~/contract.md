@@ -95,9 +95,16 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Hosts*,
   which reports both cases in the loaded scenes and on every scene save.
 
-  There is no runtime fix for this and there cannot be one: a `Component` cannot be moved to
-  another `GameObject`, so nothing can relocate an authored singleton without discarding its
-  serialized state. It is caught where it is authored or not at all.
+  A persistent singleton **with no serialized fields** resolves this itself: it is rebuilt on a
+  new `GameObject` named for the type, and the shared host stays in the scene. A `Component` cannot
+  be moved between `GameObject`s, so this destroys the authored component and constructs a
+  replacement — safe only because there was no serialized state to carry across. Two costs remain
+  that no check can see: **serialized references to the component break** (an inspector field or a
+  `UnityEvent` wired to it), and the subclass's own `Awake` body runs on both the original and the
+  replacement. Give the type a serialized field, or put it on its own object, to opt out.
+
+  With serialized fields there is nothing safe to do, so the host is persisted as before and the
+  validator reports it.
 - **Unguarded `OnDestroy` / `OnApplicationQuit` access to a `UnityEngine` member** of the
   singleton. Your own members are fine there. ERS0003. See [Teardown](#teardown).
 
