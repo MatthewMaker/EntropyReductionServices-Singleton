@@ -126,7 +126,7 @@ namespace EntropyReductionServices.Singletons
         /// still reports true. The singleton reports what it sees there, and this is where it
         /// lands.
         /// </summary>
-        public static bool IsUnloadingScene => s_unloadFrame == Time.frameCount;
+        public static bool IsUnloadingScene => s_unloadFrame >= 0 && s_unloadFrame == Time.frameCount;
 
         /// <summary>
         /// True while the singleton must not resurrect itself: the application is quitting, or a
@@ -294,7 +294,7 @@ namespace EntropyReductionServices.Singletons
             target.name += suffix;
         }
 
-        private static int s_editModePolicy = -1;
+        private static SingletonEditModePolicy? s_editModePolicy;
 
         /// <summary>
         /// Resolves (once) how this type behaves outside play mode. Defaults to CreateTransient,
@@ -304,14 +304,14 @@ namespace EntropyReductionServices.Singletons
         {
             get
             {
-                if (s_editModePolicy < 0)
+                if (s_editModePolicy == null)
                 {
                     var attr = Attribute.GetCustomAttribute(
                         typeof(T), typeof(SingletonEditModeAttribute), true) as SingletonEditModeAttribute;
-                    s_editModePolicy = (int)(attr?.Policy ?? SingletonEditModePolicy.CreateTransient);
+                    s_editModePolicy = attr?.Policy ?? SingletonEditModePolicy.CreateTransient;
                 }
 
-                return (SingletonEditModePolicy)s_editModePolicy;
+                return s_editModePolicy.Value;
             }
         }
 
@@ -669,10 +669,12 @@ namespace EntropyReductionServices.Singletons
         /// </summary>
         protected virtual void OnDestroy()
         {
-            if (!ReferenceEquals(s_instance, this)) return;
+            if (!IsCurrentInstance) return;
 
             if (!gameObject.scene.isLoaded) SingletonRuntime.NotifySceneUnloading();
 
+            // Written through the field, not Current: the setter stamps s_lastKnown, which would
+            // overwrite the tombstone that Instance hands back during teardown.
             s_instance = null;
             Log("cleared instance on destroy.", this);
         }
@@ -706,8 +708,20 @@ namespace EntropyReductionServices.Singletons
         {
             get
             {
-                if (!Application.isPlaying && EditModePolicy == SingletonEditModePolicy.Disabled)
+                // Policy first: a cached managed compare short-circuits ahead of the native
+                // isPlaying call for every type that did not opt out.
+                if (EditModePolicy == SingletonEditModePolicy.Disabled && !Application.isPlaying)
                     throw new MissingSingletonException(PolicyViolationMessage());
+
+                // Fast path. All three helpers below open with "if (Current != null) return", so
+                // once the slot is filled they are no-ops and the resolved read costs one
+                // session-guarded fake-null collapse rather than four.
+                var cached = Current;
+                if (cached != null)
+                {
+                    DebugSingletonGet();
+                    return cached;
+                }
 
                 MaybeFindInScene();
                 MaybeCreateFromResource();

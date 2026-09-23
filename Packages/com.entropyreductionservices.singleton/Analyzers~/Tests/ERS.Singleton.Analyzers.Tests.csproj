@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Generated from package.json by scripts/sync-version.py. -->
+  <Import Project="../Version.props" />
+
   <!--
     Unit tests for the analyzer rules, run by `dotnet test` and by CI.
 
     These exist because the analyzer can fail completely without failing anything else: it
     resolves its base type by metadata name at compilation start and registers no actions when
-    that lookup misses, so a wrong string disables all five rules while every build stays green.
+    that lookup misses, so a wrong string disables every rule while every build stays green.
     That shipped once. Every test here therefore asserts a rule actually fires, not merely that
     the analyzer loads.
   -->
@@ -43,6 +46,29 @@
 
   <ItemGroup>
     <ProjectReference Include="../ERS.Singleton.Analyzers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Embedded as text, not compiled: the harness prepends it to every snippet as source. Shared
+      with StalenessProbe so the probe cannot model a smaller hierarchy than the tests.
+    -->
+    <EmbeddedResource Include="../Shared/SingletonStubs.cs" LogicalName="SingletonStubs.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Handed to CommittedAnalyzerVersionTests so it can check the committed DLL without guessing
+      at a relative path from the test binary's output folder.
+    -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ExpectedAnalyzerVersion</_Parameter1>
+      <_Parameter2>$(Version)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CommittedAnalyzerPath</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../../Runtime/Analyzers/ERS.Singleton.Analyzers.dll</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

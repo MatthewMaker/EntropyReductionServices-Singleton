@@ -18,15 +18,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
+      # The two generated-file checks need only python3, which ubuntu-latest preinstalls.
+      # They run before setup-dotnet so the cheapest failures do not wait on an SDK download.
       - name: Analyzer severities match .editorconfig
         # The rulesets are generated from .editorconfig. Checked here as well as in the
         # pre-commit hook, because git does not version .git/hooks and a fresh clone has none
         # until someone runs `git config core.hooksPath .githooks`.
         run: python3 scripts/sync-analyzer-severities.py --check
+
+      - name: Package version is consistent
+        # package.json is the source; Version.props is generated from it and the CHANGELOG and
+        # analyzer release notes are checked against it. The committed DLL's own version is
+        # checked by the test suite below, which needs a runtime to read it.
+        run: python3 scripts/sync-version.py --check
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # No lock files are committed, so setup-dotnet's built-in cache cannot key on one.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Packages/com.entropyreductionservices.singleton/Analyzers~/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Build
         # TreatWarningsAsErrors catches RS-prefixed analyzer-authoring mistakes (unregistered
@@ -60,9 +76,13 @@ jobs:
           # The severity is not matched on. This project pins the rules to warning via its own
           # .editorconfig, but the check is about whether a rule FIRES, and tying it to one
           # severity turns a severity change into a mystifying CI failure.
+          #
+          # The rule list comes from .editorconfig via --list-ids rather than being spelled out
+          # here. A hardcoded list keeps passing when a rule is added to it, which is exactly the
+          # case this step exists to catch.
           set -o pipefail
           dotnet build -c Release --no-incremental 2>&1 | tee build.log
-          for rule in ERS0001 ERS0002 ERS0003 ERS0004 ERS0005 ERS0006 ERS0007; do
+          for rule in $(python3 "$GITHUB_WORKSPACE/scripts/sync-analyzer-severities.py" --list-ids); do
             grep -qE "(warning|error) $rule" build.log || missing="$missing $rule"
           done
           [ -z "$missing" ] || {

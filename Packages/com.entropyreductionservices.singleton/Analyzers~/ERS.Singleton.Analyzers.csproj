@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Generated from package.json by scripts/sync-version.py. -->
+  <Import Project="Version.props" />
+
   <!--
     Unity loads analyzers as plain netstandard2.0 assemblies. Two hard requirements:
       - TargetFramework MUST be netstandard2.0. Unity's compiler host will not load net6.0+.
@@ -24,7 +27,6 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RoslynVersion Condition="'$(RoslynVersion)' == ''">3.8.0</RoslynVersion>
-    <Version>2.2.0</Version>
 
     <!--
       The built DLL is committed to the repo, so keep its content tied to the sources rather than
@@ -55,6 +57,7 @@
     <!-- The default glob would otherwise sweep the sibling projects' sources into the analyzer. -->
     <Compile Remove="Tests/**" />
     <Compile Remove="StalenessProbe/**" />
+    <Compile Remove="Shared/**" />
   </ItemGroup>
 
   <ItemGroup>

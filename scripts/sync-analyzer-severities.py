@@ -8,8 +8,11 @@ source of truth and the rulesets are generated from it.
 
     python3 scripts/sync-analyzer-severities.py            # write the rulesets
     python3 scripts/sync-analyzer-severities.py --check     # exit 1 if they have drifted
+    python3 scripts/sync-analyzer-severities.py --list-ids  # print every rule id, one per line
 
---check is what the pre-commit hook and CI run.
+--check is what the pre-commit hook and CI run. --list-ids lets the staleness-probe CI step
+derive the rule list from .editorconfig rather than restating it in a shell loop, so a rule
+added here cannot be silently left unchecked.
 """
 
 import re
@@ -67,7 +70,7 @@ def read_severities():
     return severities
 
 
-def render(severities, path):
+def render(severities):
     """Build the full text of one ruleset file, including the header that says not to edit it.
 
     The header names this script and .editorconfig so that someone who opens the file to change a
@@ -101,12 +104,21 @@ def render(severities, path):
 
 
 def main():
-    check_only = "--check" in sys.argv[1:]
+    args = sys.argv[1:]
+    check_only = "--check" in args
     severities = read_severities()
+
+    # Consumed by the staleness-probe CI step, which asserts every rule fires against the
+    # committed DLL. Driving that loop from here means a new rule is checked the moment it is
+    # declared in .editorconfig, instead of when someone remembers to edit the workflow.
+    if "--list-ids" in args:
+        print("\n".join(sorted(severities)))
+        return 0
+
+    wanted = render(severities)
 
     stale = []
     for path in RULESETS:
-        wanted = render(severities, path)
         current = path.read_text(encoding="utf-8") if path.exists() else None
         if current == wanted:
             continue

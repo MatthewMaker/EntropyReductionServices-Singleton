@@ -29,22 +29,37 @@ Run in this order. Steps 2 and 3 are the ones that silently produce a broken pac
 
 1. **Update `CHANGELOG.md`** — rename the `[Unreleased]` heading to the new version, or add one.
    Keep a Changelog format; `Changed`/`Fixed`/`Added`, breaking items marked **Breaking:**.
-2. **Bump the version in all three places** (see below). They are not checked against each other.
+2. **Bump `"version"` in `package.json`, then run `python3 scripts/sync-version.py`** to regenerate
+   `Analyzers~/Version.props`. Move any rules in `AnalyzerReleases.Unshipped.md` across under a new
+   `## Release x.y.z` heading. `--check` then verifies all four agree (see below).
 3. **Rebuild and recommit the analyzer DLL.** The csproj stamps the version into the assembly, so
-   a version bump without a rebuild ships a binary claiming the old version.
+   a version bump without a rebuild ships a binary claiming the old version. `CommittedAnalyzerVersionTests`
+   in `Analyzers~/Tests` fails when you forget.
 4. **Verify locally** — all four suites, below. CI cannot do this for you.
 5. **Commit**, then `git tag -a vX.Y.Z -m "..."`, then `git push origin main --follow-tags`.
 6. **Publishing is automatic.** Pushing the tag triggers `.github/workflows/openupm.yml`, which
    tells OpenUPM to build and publish that version. Check the workflow result rather than
    assuming — a tag whose version does not match `package.json` is rejected at that point.
 
-### The three version locations
+### The version locations
 
-| File | Field |
-|---|---|
-| `Packages/com.entropyreductionservices.singleton/package.json` | `"version"` |
-| `Packages/com.entropyreductionservices.singleton/Analyzers~/ERS.Singleton.Analyzers.csproj` | `<Version>` |
-| `Packages/com.entropyreductionservices.singleton/CHANGELOG.md` | the top `## [x.y.z]` heading |
+`package.json` is the source of truth. The others are generated from it or checked against it by
+`scripts/sync-version.py`, so they can no longer drift silently:
+
+| File | Field | How it is kept true |
+|---|---|---|
+| `…/package.json` | `"version"` | **source of truth** — edit this one |
+| `…/Analyzers~/Version.props` | `<Version>` | generated; imported by the analyzer and test csproj |
+| `…/CHANGELOG.md` | the top `## [x.y.z]` heading | checked |
+| `…/Analyzers~/AnalyzerReleases.Shipped.md` | the top `## Release x.y.z` heading | checked |
+| `…/Runtime/Analyzers/ERS.Singleton.Analyzers.dll` | stamped assembly version | checked by `CommittedAnalyzerVersionTests` |
+
+```sh
+python3 scripts/sync-version.py            # regenerate Version.props
+python3 scripts/sync-version.py --check     # exit 1 if anything disagrees
+```
+
+`--check` runs in the CI analyzer job and in `.githooks/pre-commit`, beside the severity check.
 
 Semver against *consumers*. Raising `"unity"` (the minimum editor) drops support for a class of
 consumers and is a major bump — that is why 2.0.0 followed 1.0.2.
@@ -77,7 +92,10 @@ UNITY="/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app/Contents/MacOS/Unity"
 #    Count unique ids, not lines — each warning is printed twice.
 cp "$PKG/Analyzers~/bin/Release/ERS.Singleton.Analyzers.dll" "$PKG/Runtime/Analyzers/"
 ( cd "$PKG/Analyzers~/StalenessProbe" && dotnet build -c Release --no-incremental 2>&1 \
-    | grep -oE "(warning|error) ERS000[0-9]" | sort -u )   # expect ERS0001 through ERS0007
+    | grep -oE "(warning|error) ERS000[0-9]" | sort -u )   # expect every id --list-ids prints
+
+# CI drives the same loop from .editorconfig rather than a hardcoded list:
+#   python3 scripts/sync-analyzer-severities.py --list-ids
 
 # 4. Runtime behaviour, both platforms. Unity needs Assets/ and ProjectSettings/ present.
 "$UNITY" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode \
@@ -96,7 +114,11 @@ Batchmode exits non-zero on failure; read the `<test-run>` attributes in the XML
 ```sh
 python3 scripts/sync-analyzer-severities.py            # regenerate after editing .editorconfig
 python3 scripts/sync-analyzer-severities.py --check     # exit 1 if drifted
+python3 scripts/sync-analyzer-severities.py --list-ids  # every rule id, one per line
 ```
+
+`--list-ids` is what the staleness-probe CI step loops over, so a rule added to `.editorconfig` is
+checked against the committed DLL without anyone editing the workflow.
 
 Both formats are required and neither is redundant: IDEs read `.editorconfig`, while Unity ignores
 it when running analyzers through the Editor and reads the ruleset instead. Configure one and the
@@ -111,6 +133,11 @@ git config core.hooksPath .githooks
 
 ## Non-obvious repo facts
 
+- **The analyzer's stub Unity hierarchy lives in one place.** `Analyzers~/Shared/SingletonStubs.cs`
+  is compiled into `StalenessProbe` and embedded as a resource into the analyzer tests, which
+  prepend it to every snippet. Both used to carry their own copy with a comment asking the next
+  reader to keep them in step; if the probe modelled a smaller hierarchy than the tests, a rule
+  that only misbehaved on the passive base passed the committed-DLL check.
 - **`Analyzers~` and `Documentation~` end in `~`, so Unity never imports them.** The analyzer
   *source* is therefore invisible to the editor; only the built DLL at
   `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` is. That DLL is committed on purpose, and

@@ -32,12 +32,15 @@ namespace EntropyReductionServices.Singletons.Tests
         /// FindObjectsOfTypeAll, not FindObjectsByType, because edit-mode transients carry
         /// HideFlags.DontSave and the ordinary find APIs skip them.
         /// </summary>
+        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
+        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Fixtures).Assembly;
+
         public static void PurgeAll()
         {
             foreach (var probe in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
             {
                 if (probe == null) continue;
-                if (probe.GetType().Assembly != typeof(Fixtures).Assembly) continue;
+                if (probe.GetType().Assembly != OwnAssembly) continue;
                 if (!probe.gameObject.scene.IsValid()) continue;   // a prefab asset, not ours
                 Object.DestroyImmediate(probe.gameObject);
             }

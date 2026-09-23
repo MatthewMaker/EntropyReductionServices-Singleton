@@ -26,6 +26,9 @@
 
   <ItemGroup>
     <Analyzer Include="../../Runtime/Analyzers/ERS.Singleton.Analyzers.dll" />
+
+    <!-- Shared with Tests/AnalyzerHarness.cs so probe and unit tests model one hierarchy. -->
+    <Compile Include="../Shared/SingletonStubs.cs" Link="SingletonStubs.cs" />
   </ItemGroup>
 
 </Project>

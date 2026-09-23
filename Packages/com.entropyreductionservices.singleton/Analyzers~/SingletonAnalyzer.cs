@@ -170,16 +170,17 @@ namespace EntropyReductionServices.Analyzers
                 wantsFirst ? "first, before any other statement" : "last, after any other statement"));
         }
 
-        /// <summary>True when the statement is exactly 'base.&lt;name&gt;();' and nothing else.</summary>
-        private static bool IsBaseCallStatement(StatementSyntax statement, string name)
-        {
-            if (!(statement is ExpressionStatementSyntax expression)) return false;
-            if (!(expression.Expression is InvocationExpressionSyntax invocation)) return false;
-            if (!(invocation.Expression is MemberAccessExpressionSyntax access)) return false;
-            if (!(access.Expression is BaseExpressionSyntax)) return false;
+        /// <summary>True when the node is a base.&lt;name&gt;(...) invocation.</summary>
+        private static bool IsBaseInvocation(SyntaxNode node, string name) =>
+            node is InvocationExpressionSyntax invocation &&
+            invocation.Expression is MemberAccessExpressionSyntax access &&
+            access.Expression is BaseExpressionSyntax &&
+            access.Name.Identifier.ValueText == name;
 
-            return access.Name.Identifier.ValueText == name;
-        }
+        /// <summary>True when the statement is exactly 'base.&lt;name&gt;();' and nothing else.</summary>
+        private static bool IsBaseCallStatement(StatementSyntax statement, string name) =>
+            statement is ExpressionStatementSyntax expression &&
+            IsBaseInvocation(expression.Expression, name);
 
         /// <summary>
         /// True when the declaration contains a base.&lt;name&gt;(...) invocation anywhere,
@@ -191,10 +192,7 @@ namespace EntropyReductionServices.Analyzers
         {
             foreach (var node in declaration.DescendantNodes())
             {
-                if (!(node is InvocationExpressionSyntax invocation)) continue;
-                if (!(invocation.Expression is MemberAccessExpressionSyntax access)) continue;
-                if (!(access.Expression is BaseExpressionSyntax)) continue;
-                if (access.Name.Identifier.ValueText == name) return true;
+                if (IsBaseInvocation(node, name)) return true;
             }
 
             return false;
@@ -278,9 +276,7 @@ namespace EntropyReductionServices.Analyzers
             if (lazySingleton == null || receiver == null) return;
             if (!DerivesFrom(receiver, lazySingleton)) return;
 
-            if (!(access.Parent is ConditionalAccessExpressionSyntax conditional) ||
-                conditional.Expression != access)
-                return;
+            if (!IsNullConditionalReceiver(access, out _)) return;
 
             context.ReportDiagnostic(Diagnostic.Create(
                 SingletonDiagnostics.RedundantNullConditional,
@@ -301,10 +297,8 @@ namespace EntropyReductionServices.Analyzers
         {
             if (monoBehaviour == null) return false;
 
-            var owner = context.SemanticModel.GetEnclosingSymbol(access.SpanStart, context.CancellationToken)
-                ?.ContainingType;
-            if (owner == null || !DerivesFrom(owner, monoBehaviour)) return false;
-
+            // Syntax first: almost every Instance access sits in an ordinary method, and this
+            // rejects those without binding a symbol.
             string where = null;
 
             if (enclosing is ConstructorDeclarationSyntax ctor && !ctor.Modifiers.Any(SyntaxKind.StaticKeyword))
@@ -313,6 +307,10 @@ namespace EntropyReductionServices.Analyzers
                 where = "an instance field initializer";
 
             if (where == null) return false;
+
+            var owner = context.SemanticModel.GetEnclosingSymbol(access.SpanStart, context.CancellationToken)
+                ?.ContainingType;
+            if (owner == null || !DerivesFrom(owner, monoBehaviour)) return false;
 
             context.ReportDiagnostic(Diagnostic.Create(
                 SingletonDiagnostics.ConstructionTimeAccess,
@@ -381,7 +379,8 @@ namespace EntropyReductionServices.Analyzers
         // play (SetActive(false), a disabled component, a pooled object returning to its pool),
         // and nothing in the syntax distinguishes the two. Flagging it warns on the common,
         // correct case, so it is left to the author.
-        private static readonly string[] TeardownMethods = { "OnDestroy", "OnApplicationQuit" };
+        private const string OnDestroyName = "OnDestroy";
+        private const string OnApplicationQuitName = "OnApplicationQuit";
 
         /// <summary>
         /// ERS0003: a dereference of Instance inside a teardown callback. Only direct dereferences
@@ -398,23 +397,17 @@ namespace EntropyReductionServices.Analyzers
             if (!(enclosing is MethodDeclarationSyntax method)) return false;
 
             var methodName = method.Identifier.ValueText;
-            var isTeardown = false;
-            foreach (var candidate in TeardownMethods)
-            {
-                if (methodName != candidate) continue;
-                isTeardown = true;
-                break;
-            }
-
-            if (!isTeardown) return false;
+            if (methodName != OnDestroyName && methodName != OnApplicationQuitName) return false;
             if (!IsDereferenced(access)) return false;
-            if (HasExplicitGuard(method)) return false;
 
             // Only UnityEngine-declared members reach the native object. Your own methods run on
             // the destroyed component's managed state and are fine, which is the overwhelmingly
             // common teardown shape — an OnDestroy unregistering itself from a manager.
             var member = FindMemberAccessedOnInstance(access);
             if (member == null) return false;
+
+            // Last, because it is the only check here that walks the whole method body.
+            if (HasExplicitGuard(method)) return false;
 
             var symbol = context.SemanticModel.GetSymbolInfo(member, context.CancellationToken).Symbol;
             if (!IsDeclaredByUnity(symbol)) return false;
@@ -442,9 +435,7 @@ namespace EntropyReductionServices.Analyzers
             if (access.Parent is MemberAccessExpressionSyntax plain && plain.Expression == access)
                 return plain.Name;
 
-            if (!(access.Parent is ConditionalAccessExpressionSyntax conditional) ||
-                conditional.Expression != access)
-                return null;
+            if (!IsNullConditionalReceiver(access, out var conditional)) return null;
 
             switch (conditional.WhenNotNull)
             {
@@ -488,11 +479,20 @@ namespace EntropyReductionServices.Analyzers
         /// </summary>
         private static bool IsDereferenced(MemberAccessExpressionSyntax access)
         {
-            if (access.Parent is ConditionalAccessExpressionSyntax conditional &&
-                conditional.Expression == access)
-                return true;
+            if (IsNullConditionalReceiver(access, out _)) return true;
 
             return access.Parent is MemberAccessExpressionSyntax parent && parent.Expression == access;
+        }
+
+        /// <summary>
+        /// True when this access is the receiver of a '?.' — the 'Foo.Instance' in
+        /// 'Foo.Instance?.Bar' — rather than merely sitting somewhere inside one.
+        /// </summary>
+        private static bool IsNullConditionalReceiver(
+            MemberAccessExpressionSyntax access, out ConditionalAccessExpressionSyntax conditional)
+        {
+            conditional = access.Parent as ConditionalAccessExpressionSyntax;
+            return conditional != null && conditional.Expression == access;
         }
 
         /// <summary>True when the method mentions IsAvailable or TryGetInstance anywhere.</summary>

@@ -23,12 +23,15 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         /// Sweeps by assembly rather than by an explicit type list, so a probe added without a
         /// matching teardown line cannot silently leak static state into the next test.
         /// </summary>
+        /// <summary>Hoisted out of the sweep below, which runs over every live MonoBehaviour.</summary>
+        private static readonly System.Reflection.Assembly OwnAssembly = typeof(Probes).Assembly;
+
         public static void PurgeAll()
         {
             foreach (var probe in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
             {
                 if (probe == null) continue;
-                if (probe.GetType().Assembly != typeof(Probes).Assembly) continue;
+                if (probe.GetType().Assembly != OwnAssembly) continue;
                 if (!probe.gameObject.scene.IsValid()) continue;
                 Object.DestroyImmediate(probe.gameObject);
             }

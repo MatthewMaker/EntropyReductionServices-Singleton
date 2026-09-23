@@ -1,49 +1,8 @@
-// Stub Unity and singleton types, then one violation per rule. Kept in a single file so the
-// CI step can assert on diagnostic codes without tracking line numbers.
-
-namespace UnityEngine
-{
-    // Enough of the real hierarchy to exercise ERS0003, which now fires only on members declared
-    // in the UnityEngine namespace — those are the ones backed by the native peer.
-    public class Object { public string name; }
-    public class Component : Object { public Transform transform; }
-    public class Transform : Component { }
-    public class Behaviour : Component { public bool enabled; }
-    public class MonoBehaviour : Behaviour { public void StartCoroutine(object routine) { } }
-}
-
-namespace EntropyReductionServices.Singletons
-{
-    public abstract class MonoBehaviourSingletonBase<T> : UnityEngine.MonoBehaviour
-        where T : MonoBehaviourSingletonBase<T>
-    {
-        public static bool IsAvailable { get { return true; } }
-        public static bool TryGetInstance(out T instance) { instance = null; return false; }
-        protected virtual void OnDestroy() { }
-    }
-
-    public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
-        where T : MonoBehaviourSingleton<T>
-    {
-        public static T Instance { get { return null; } }
-    }
-
-    public abstract class MonoBehaviourSingletonPersistent<T> : MonoBehaviourSingleton<T>
-        where T : MonoBehaviourSingletonPersistent<T>
-    {
-        protected virtual void Awake() { }
-    }
-
-    // Kept in step with Tests/AnalyzerHarness.cs deliberately: if the probe models a smaller
-    // hierarchy than the unit tests, a rule that only misbehaves on the passive base passes the
-    // committed-DLL check.
-    public abstract class MonoBehaviourSingletonPassive<T> : MonoBehaviourSingletonBase<T>
-        where T : MonoBehaviourSingletonPassive<T>
-    {
-        public static T Instance { get { return null; } }
-        protected virtual void Awake() { }
-    }
-}
+// One violation per rule, compiled against the COMMITTED analyzer DLL. Kept in a single file so
+// the CI step can assert on diagnostic codes without tracking line numbers.
+//
+// The stub Unity and singleton hierarchy these types derive from lives in ../Shared/SingletonStubs.cs,
+// compiled in via the csproj and shared with the analyzer unit tests.
 
 namespace Probe
 {

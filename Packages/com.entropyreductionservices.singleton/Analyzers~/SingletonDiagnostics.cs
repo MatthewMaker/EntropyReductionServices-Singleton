@@ -23,56 +23,62 @@ namespace EntropyReductionServices.Analyzers
             "Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#";
 
         /// <summary>
+        /// Builds a descriptor with the uniform parts filled in. The help anchor is derived from
+        /// the id rather than typed alongside it, so the two cannot drift apart, and the
+        /// "every rule ships as a Warning" policy above has exactly one line of code behind it.
+        /// </summary>
+        private static DiagnosticDescriptor Rule(
+            string id, string title, string messageFormat, string description) =>
+            new DiagnosticDescriptor(
+                id: id,
+                title: title,
+                messageFormat: messageFormat,
+                category: Category,
+                defaultSeverity: DiagnosticSeverity.Warning,
+                isEnabledByDefault: true,
+                description: description,
+                helpLinkUri: HelpBase + id.ToLowerInvariant());
+
+        /// <summary>
         /// ERS0001 — an Awake or OnDestroy override that never calls its base implementation.
         /// The base Awake claims the singleton slot and destroys duplicates; the base OnDestroy
         /// releases it. Skipping either leaves a singleton that is never registered, or a stale
         /// static reference to a destroyed object.
         /// </summary>
-        public static readonly DiagnosticDescriptor MissingBaseCall = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor MissingBaseCall = Rule(
             id: "ERS0001",
             title: "Singleton message override must call its base implementation",
             messageFormat: "'{0}.{1}' overrides the singleton's '{1}' but never calls base.{1}(); " +
                            "the slot will not be claimed or released",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "The singleton base classes do their registration, deduplication and " +
                          "teardown work inside Awake and OnDestroy. An override that does not " +
                          "chain to base leaves the singleton non-functional in a way that only " +
-                         "shows up at runtime.",
-            helpLinkUri: HelpBase + "ers0001");
+                         "shows up at runtime.");
 
         /// <summary>
         /// ERS0002 — storing Instance in a field. Bypasses the session guard and the fake-null
         /// collapse, which are the two mechanisms that make the accessor safe.
         /// </summary>
-        public static readonly DiagnosticDescriptor CachedInstance = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor CachedInstance = Rule(
             id: "ERS0002",
             title: "Do not cache a singleton Instance in a field",
             messageFormat: "'{0}' stores '{1}.Instance' in a field; read the property at the point " +
                            "of use instead",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "The Instance accessor discards references captured in a previous play " +
                          "session and collapses Unity's destroyed-object wrapper into a real null. " +
                          "A field copy does neither, so it survives domain reload and scene " +
                          "changes as a reference to an object that no longer exists. A local " +
-                         "variable inside a single method is fine.",
-            helpLinkUri: HelpBase + "ers0002");
+                         "variable inside a single method is fine.");
 
         /// <summary>
         /// ERS0003 — dereferencing Instance during teardown, where the contract allows null.
         /// </summary>
-        public static readonly DiagnosticDescriptor UnguardedTeardownAccess = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor UnguardedTeardownAccess = Rule(
             id: "ERS0003",
             title: "Guard teardown access to a singleton's Unity members",
             messageFormat: "'{0}' reads '{1}.Instance.{2}' inside '{3}'; '{2}' is declared by " +
                            "UnityEngine, so it reaches a native object that may already be " +
                            "destroyed. Test IsAvailable or use TryGetInstance",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "During teardown Instance returns the component that held the slot, " +
                          "still a live C# object after its native peer is gone. Calling your own " +
                          "members on it is therefore safe, and is not reported: an OnDestroy that " +
@@ -83,25 +89,20 @@ namespace EntropyReductionServices.Analyzers
                          "reference, and the destroyed component is a live C# object, so it " +
                          "proceeds. Use IsAvailable or TryGetInstance, which consult Unity's == " +
                          "overload. The rule reads only the member named directly on Instance; a " +
-                         "method of your own that itself touches the native peer is invisible to it.",
-            helpLinkUri: HelpBase + "ers0003");
+                         "method of your own that itself touches the native peer is invisible to it.");
 
         /// <summary>
         /// ERS0004 — touching Instance from an instance field initializer or a constructor of a
         /// MonoBehaviour. Unity throws on Find and GameObject construction in both contexts.
         /// </summary>
-        public static readonly DiagnosticDescriptor ConstructionTimeAccess = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor ConstructionTimeAccess = Rule(
             id: "ERS0004",
             title: "Do not access a singleton during MonoBehaviour construction",
             messageFormat: "'{0}' reads '{1}.Instance' from {2}; Unity does not permit object " +
                            "lookup or creation before Awake",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "Field initializers and constructors on a MonoBehaviour run on Unity's " +
                          "deserialization path, where FindObjectsByType and new GameObject throw. " +
-                         "Move the access to Awake, OnEnable or Start.",
-            helpLinkUri: HelpBase + "ers0004");
+                         "Move the access to Awake, OnEnable or Start.");
 
         /// <summary>
         /// ERS0007 — the base call is present but in the wrong position.
@@ -116,21 +117,17 @@ namespace EntropyReductionServices.Analyzers
         ///
         /// Order-dependent, silent, and invisible to every other rule.
         /// </summary>
-        public static readonly DiagnosticDescriptor BaseCallOutOfOrder = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor BaseCallOutOfOrder = Rule(
             id: "ERS0007",
             title: "Singleton base call is in the wrong position",
             messageFormat: "'{0}.{1}' must call base.{1}() {2}",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "The base Awake claims the singleton slot and destroys duplicates, so it " +
                          "belongs before anything else: work placed ahead of it runs even on an " +
                          "instance that is about to destroy itself. The base OnDestroy releases " +
                          "the slot, so it belongs after everything else: code placed behind it " +
                          "sees no live instance and an IsCurrentInstance that has already gone " +
                          "false. Calling the base at all satisfies ERS0001; calling it in the " +
-                         "right place is a separate question.",
-            helpLinkUri: HelpBase + "ers0007");
+                         "right place is a separate question.");
 
         /// <summary>
         /// ERS0006 — '?.' on a lazy singleton's Instance outside teardown. The accessor cannot
@@ -142,39 +139,31 @@ namespace EntropyReductionServices.Analyzers
         /// claims the slot. There '?.' is a correct guard, and flagging it would fire hardest on
         /// the one flavour that needs it.
         /// </summary>
-        public static readonly DiagnosticDescriptor RedundantNullConditional = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor RedundantNullConditional = Rule(
             id: "ERS0006",
             title: "Null-conditional access on a lazy singleton's Instance is misleading",
             messageFormat: "'{0}.Instance' cannot be null here, so '?.' is dead; it also does not " +
                            "guard teardown. Dereference it directly",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "A lazy singleton's Instance resolves, creates, or throws — it does not " +
                          "return null while the application is running, and during teardown it " +
                          "returns the destroyed component, which '?.' does not stop because the " +
                          "operator tests the reference rather than Unity's == overload. The " +
                          "operator therefore never does what it appears to do on this flavour. " +
                          "Passive singletons are a different case and are not reported: their " +
-                         "Instance is null until a component's Awake claims the slot.",
-            helpLinkUri: HelpBase + "ers0006");
+                         "Instance is null until a component's Awake claims the slot.");
 
         /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which
         /// hides the base method. Unity invokes the most-derived declaration, so the base logic
         /// silently never runs — the same end state as ERS0001, reached by a different mistake.
         /// </summary>
-        public static readonly DiagnosticDescriptor HidesBaseMessage = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor HidesBaseMessage = Rule(
             id: "ERS0005",
             title: "Singleton message must be declared with 'override'",
             messageFormat: "'{0}.{1}' hides the singleton's virtual '{1}'; declare it as " +
                            "'protected override void {1}()' and call base",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true,
             description: "Unity calls the most-derived declaration of a magic method by name. A " +
                          "non-override declaration compiles with only a hiding warning, but the " +
-                         "base registration and teardown never run.",
-            helpLinkUri: HelpBase + "ers0005");
+                         "base registration and teardown never run.");
     }
 }
