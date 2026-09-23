@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.4.0]
+
 ### Fixed
 
 - **A singleton created from `Resources` no longer loses its slot to the component it replaced.**
