@@ -69,6 +69,13 @@
       <_Parameter1>CommittedAnalyzerPath</_Parameter1>
       <_Parameter2>$(MSBuildThisFileDirectory)../../Runtime/Analyzers/ERS.Singleton.Analyzers.dll</_Parameter2>
     </AssemblyAttribute>
+
+    <!-- Handed to RuleInventoryTests, which compares .editorconfig's rule list with the one the
+         analyzer declares. Everything generated downstream is built from the former. -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>EditorConfigPath</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../../../../.editorconfig</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>
