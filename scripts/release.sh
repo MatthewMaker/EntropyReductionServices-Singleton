@@ -206,7 +206,6 @@ path.write_text(text.replace(old, f'"version": "{new}"'), encoding="utf-8")
 print(f"    package.json -> {new}")
 PY
 
-python3 scripts/sync-version.py
 
 python3 - "$CHANGELOG" "$NEXT" <<'PY'
 import pathlib, sys
@@ -246,6 +245,12 @@ unshipped.write_text("".join(head), encoding="utf-8")
 print(f"    moved into '## Release {version}'")
 PY
 fi
+
+# Last of the version writes, deliberately: this regenerates Version.props AND validates every
+# location, so it can only run once the CHANGELOG heading and any rule move are already in place.
+# Running it earlier aborted the release under set -e with the tree half-bumped.
+step "Regenerating Version.props and checking every version location"
+python3 scripts/sync-version.py
 
 step "Rebuilding the analyzer DLL"
 # The csproj stamps the version into the assembly, so the bump above makes the committed DLL
