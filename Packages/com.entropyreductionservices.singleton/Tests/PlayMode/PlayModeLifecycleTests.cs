@@ -97,84 +97,84 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         /// <summary>
         /// A duplicate must not take an unrelated singleton down with it. Play mode specifically,
         /// because Destroy is deferred to end of frame: the bystander's Awake runs and claims its
-        /// slot before the host would have gone, so the loss only shows up a frame later. In edit
-        /// mode DestroyImmediate would have removed the host before that Awake ever ran.
+        /// slot before the GameObject would have gone, so the loss only shows up a frame later. In edit
+        /// mode DestroyImmediate would have removed the GameObject before that Awake ever ran.
         /// </summary>
         [UnityTest]
-        public IEnumerator DuplicateSharingAHost_DoesNotDestroyTheBystander()
+        public IEnumerator DuplicateSharingAGameObject_DoesNotDestroyTheBystander()
         {
             var winner = new GameObject("winner");
-            winner.AddComponent<SharedHostDuplicate>();          // claims the slot
+            winner.AddComponent<SharedObjectDuplicate>();          // claims the slot
 
             // Built inactive so both components exist before either Awake runs, which is what a
-            // scene-authored host looks like. Adding them to a live object instead would run the
+            // scene-authored GameObject looks like. Adding them to a live object instead would run the
             // duplicate's Awake while it was still alone, and the blast radius is decided there.
             var loser = new GameObject("loser");
             loser.SetActive(false);
-            loser.AddComponent<SharedHostDuplicate>();                   // the duplicate
-            var bystander = loser.AddComponent<SharedHostBystander>();   // the only one of its type
+            loser.AddComponent<SharedObjectDuplicate>();                   // the duplicate
+            var bystander = loser.AddComponent<SharedObjectBystander>();   // the only one of its type
             loser.SetActive(true);
 
             yield return null;   // end of frame: any deferred Destroy lands
 
-            Assert.IsTrue(loser != null, "the host must survive, because the bystander is on it");
+            Assert.IsTrue(loser != null, "the GameObject must survive, because the bystander is on it");
             Assert.IsTrue(bystander != null, "the bystander must survive");
-            Assert.AreSame(bystander, SharedHostBystander.Instance);
-            Assert.IsTrue(SharedHostDuplicate.Instance != null, "the winner still holds the slot");
+            Assert.AreSame(bystander, SharedObjectBystander.Instance);
+            Assert.IsTrue(SharedObjectDuplicate.Instance != null, "the winner still holds the slot");
 
             Object.DestroyImmediate(winner);
         }
 
         /// <summary>The lone-singleton case still takes its shell with it.</summary>
         [UnityTest]
-        public IEnumerator DuplicateAloneOnItsHost_StillDestroysTheHost()
+        public IEnumerator DuplicateAloneOnItsGameObject_StillDestroysIt()
         {
             var winner = new GameObject("winner");
-            winner.AddComponent<SharedHostAlone>();
+            winner.AddComponent<SharedObjectAlone>();
 
             var loser = new GameObject("loser");
-            loser.AddComponent<SharedHostAlone>();
+            loser.AddComponent<SharedObjectAlone>();
 
             yield return null;
 
-            Assert.IsTrue(loser == null, "nothing else was on the host, so the shell goes too");
-            Assert.IsTrue(SharedHostAlone.Instance != null);
+            Assert.IsTrue(loser == null, "nothing else was on the GameObject, so the shell goes too");
+            Assert.IsTrue(SharedObjectAlone.Instance != null);
 
             Object.DestroyImmediate(winner);
         }
 
         /// <summary>
-        /// A stateless persistent singleton on a shared host rebuilds itself on a GameObject named
-        /// for the type, leaving the host and its siblings in the scene.
+        /// A stateless persistent singleton on a shared GameObject rebuilds itself on a GameObject named
+        /// for the type, leaving the GameObject and its siblings in the scene.
         /// </summary>
         [UnityTest]
-        public IEnumerator PersistentOnASharedHost_RebuildsOnItsOwnObject()
+        public IEnumerator PersistentOnASharedGameObject_RebuildsOnItsOwnObject()
         {
-            var host = new GameObject("Managers");
-            host.SetActive(false);
-            host.AddComponent<ExtractStateless>();
-            var sibling = host.AddComponent<AudioSource>();
-            host.SetActive(true);
+            var owner = new GameObject("Managers");
+            owner.SetActive(false);
+            owner.AddComponent<ExtractStateless>();
+            var sibling = owner.AddComponent<AudioSource>();
+            owner.SetActive(true);
 
             yield return null;
 
-            Assert.IsTrue(host != null, "the shared host must stay in the scene");
+            Assert.IsTrue(owner != null, "the shared GameObject must stay in the scene");
             Assert.IsTrue(sibling != null, "the sibling must stay on it");
-            Assert.IsFalse(Probes.IsPersistent(host), "the shared host must not be persisted");
+            Assert.IsFalse(Probes.IsPersistent(owner), "the shared GameObject must not be persisted");
 
             var instance = ExtractStateless.Instance;
             Assert.IsTrue(instance != null);
-            Assert.AreNotSame(host, instance.gameObject, "the singleton must be on a new object");
+            Assert.AreNotSame(owner, instance.gameObject, "the singleton must be on a new object");
             Assert.AreEqual(nameof(ExtractStateless), instance.gameObject.name);
             Assert.IsTrue(Probes.IsPersistent(instance.gameObject), "the new object must be persisted");
 
-            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(owner);
             Object.DestroyImmediate(instance.gameObject);
         }
 
         /// <summary>
         /// With serialized fields there is authored state to lose, so extraction declines and the
-        /// old behaviour stands: the whole host is persisted, siblings included.
+        /// old behaviour stands: the whole GameObject is persisted, siblings included.
         /// </summary>
         [UnityTest]
         public IEnumerator PersistentWithSerializedFields_DeclinesToRebuild()
@@ -182,19 +182,19 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(
                 @"ExtractStateful is persistent but shares 'Stateful Managers'"));
 
-            var host = new GameObject("Stateful Managers");
-            host.SetActive(false);
-            var singleton = host.AddComponent<ExtractStateful>();
-            host.AddComponent<AudioSource>();
-            host.SetActive(true);
+            var owner = new GameObject("Stateful Managers");
+            owner.SetActive(false);
+            var singleton = owner.AddComponent<ExtractStateful>();
+            owner.AddComponent<AudioSource>();
+            owner.SetActive(true);
 
             yield return null;
 
             Assert.AreSame(singleton, ExtractStateful.Instance, "the authored component must survive");
-            Assert.AreSame(host, ExtractStateful.Instance.gameObject);
-            Assert.IsTrue(Probes.IsPersistent(host), "the shared host is persisted, as before");
+            Assert.AreSame(owner, ExtractStateful.Instance.gameObject);
+            Assert.IsTrue(Probes.IsPersistent(owner), "the shared GameObject is persisted, as before");
 
-            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(owner);
         }
     }
 }

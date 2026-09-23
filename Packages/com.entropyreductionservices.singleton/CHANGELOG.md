@@ -8,18 +8,18 @@ All notable changes to this package are documented here. The format follows
 
 ### Changed
 
-- **A duplicate no longer destroys its host GameObject when anything else is on it.**
+- **A duplicate no longer destroys its GameObject GameObject when anything else is on it.**
   `DestroyWholeGameObject` defaulted to a constant `true`, so resolving a duplicate of one
   singleton type could destroy a sole, correctly registered instance of a *different* type that
-  happened to share the host — and the victim had no way to defend itself, because the override
-  lived on the duplicate's type. It is now decided per host: `Transform` plus the singleton means
+  happened to share the GameObject — and the victim had no way to defend itself, because the override
+  lived on the duplicate's type. It is now decided per GameObject: `Transform` plus the singleton means
   the shell goes too, anything else means only the component is destroyed.
 
   Override to force either answer. Existing `=> false` overrides keep working unchanged; an
   explicit `=> true` is now the way to get the old unconditional behaviour.
 
 - **A persistent singleton with no serialized fields is rebuilt on its own GameObject** when it
-  shares a host, instead of dragging the siblings into `DontDestroyOnLoad`. The new object is named
+  shares a `GameObject`, instead of dragging the siblings into `DontDestroyOnLoad`. The new object is named
   for the type. A `Component` cannot be moved between `GameObject`s, so this destroys the authored
   component and constructs a replacement — which is why it is limited to types with no serialized
   state to lose.
@@ -27,17 +27,17 @@ All notable changes to this package are documented here. The format follows
   Two costs it cannot detect: serialized references *to* the component break, and the subclass's
   `Awake` body runs on both the original and the replacement. Adding a serialized field opts the
   type out, as does putting it on its own object. Types with serialized fields behave as before,
-  and now log a warning naming the host.
+  and now log a warning naming the GameObject.
 
 ### Added
 
-- **An editor-side validator for shared singleton hosts**, at *Tools > Entropy Reduction Services >
-  Validate Singleton Hosts*. It also runs on every scene save, and reports two cases: more than one
-  singleton on a GameObject, and a persistent singleton sharing its host with ordinary components
+- **An editor-side validator for singleton placement**, at *Tools > Entropy Reduction Services >
+  Validate Singleton Placement*. It also runs on every scene save, and reports two cases: more than one
+  singleton on a GameObject, and a persistent singleton sharing its GameObject with ordinary components
   that `DontDestroyOnLoad` will drag along with it. Warnings carry the object as their log context,
   so clicking one selects it.
 
-  It is an editor tool because it cannot be anything else. A shared host is scene data, invisible
+  It is an editor tool because it cannot be anything else. A shared GameObject is scene data, invisible
   to the analyzers, and the runtime cannot repair it — a `Component` cannot be moved to another
   `GameObject`, so relocating an authored singleton would mean recreating it and discarding its
   serialized state. Ships in its own Editor-only assembly, so the runtime keeps its no-`UnityEditor`

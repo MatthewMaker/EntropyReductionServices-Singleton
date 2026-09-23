@@ -43,14 +43,14 @@ namespace EntropyReductionServices.Singletons.Tests
         {
             Fixtures.Author<PersistentComponentOnly>("First");
 
-            var host = new GameObject("Shared Host");
-            var bystander = host.AddComponent<BoxCollider>();
-            host.AddComponent<PersistentComponentOnly>();
+            var owner = new GameObject("Shared Object");
+            var bystander = owner.AddComponent<BoxCollider>();
+            owner.AddComponent<PersistentComponentOnly>();
 
-            Assert.IsTrue(host != null, "DestroyWholeGameObject=false must spare the host object");
+            Assert.IsTrue(owner != null, "DestroyWholeGameObject=false must spare the GameObject");
             Assert.IsTrue(bystander != null, "and everything else living on it");
 
-            Object.DestroyImmediate(host);
+            Object.DestroyImmediate(owner);
         }
 
         [Test]

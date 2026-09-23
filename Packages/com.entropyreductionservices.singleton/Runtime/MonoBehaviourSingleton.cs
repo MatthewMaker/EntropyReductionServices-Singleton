@@ -127,7 +127,7 @@ namespace EntropyReductionServices.Singletons
         /// True when the singleton type declares anything Unity would serialize, ignoring members
         /// of the singleton base classes themselves.
         ///
-        /// Decides whether a persistent singleton on a shared host may be rebuilt on an object of
+        /// Decides whether a persistent singleton on a shared GameObject may be rebuilt on an object of
         /// its own: with no serialized state there is nothing for the rebuild to lose. Non-generic
         /// so the editor-side validator can ask exactly the same question the runtime asks, rather
         /// than keeping a second copy of the rule that drifts.
@@ -688,11 +688,11 @@ namespace EntropyReductionServices.Singletons
             // transient is already effectively persistent: DontSave survives scene loads.
             if (!Application.isPlaying) return;
 
-            // DontDestroyOnLoad is GameObject-scoped, so persisting a shared host reparents every
+            // DontDestroyOnLoad is GameObject-scoped, so persisting a shared GameObject reparents every
             // sibling to the scene root and makes them persistent too. A Component cannot be moved
             // between GameObjects, so the only way out is to rebuild this one on an object of its
             // own — which is safe exactly when the type has no serialized state to lose.
-            if (!AloneOnHost && TryExtractToOwnHost()) return;
+            if (!AloneOnItsGameObject && TryRebuildOnOwnGameObject()) return;
 
             DetachIfNotRoot();
             DontDestroyOnLoad(gameObject);
@@ -714,30 +714,30 @@ namespace EntropyReductionServices.Singletons
         }
 
         /// <summary>
-        /// Controls the blast radius when a duplicate is discovered: the whole host GameObject,
+        /// Controls the blast radius when a duplicate is discovered: the whole GameObject GameObject,
         /// or only this component.
         ///
-        /// Decided per host rather than per type, because that is the axis the question lives on.
+        /// Decided per GameObject rather than per type, because that is the axis the question lives on.
         /// A type cannot know whether it is alone on its object — bundled onto a shared "Managers"
         /// object in one scene, on its own in another — and the old constant default of true made
         /// the victim's safety depend on the *duplicate's* type overriding it. A sole, correctly
-        /// registered singleton could be destroyed as collateral because its host also carried a
+        /// registered singleton could be destroyed as collateral because its GameObject also carried a
         /// duplicate of an unrelated singleton type, and it had no way to defend itself.
         ///
-        /// Transform plus this component means nothing else is lost with the host, so the shell
+        /// Transform plus this component means nothing else is lost with the GameObject, so the shell
         /// goes too. Anything else present, and only this component is destroyed — leaving a
         /// stripped GameObject behind is cheaper than silently breaking another component's
         /// contract. Override to force either answer.
         /// </summary>
-        protected virtual bool DestroyWholeGameObject => AloneOnHost;
+        protected virtual bool DestroyWholeGameObject => AloneOnItsGameObject;
 
         /// <summary>
-        /// True when the Transform and this component are all that is on the host, so nothing else
+        /// True when the Transform and this component are all that is on the GameObject, so nothing else
         /// is affected by what happens to the GameObject.
         /// </summary>
-        protected bool AloneOnHost => gameObject.GetComponents<Component>().Length <= 2;
+        protected bool AloneOnItsGameObject => gameObject.GetComponents<Component>().Length <= 2;
 
-        private static bool s_warnedSharedHost;
+        private static bool s_warnedSharedGameObject;
 
         /// <summary>Resolved once per type; the rule itself lives on SingletonRuntime.</summary>
         private static bool HasSerializedFields =>
@@ -761,8 +761,8 @@ namespace EntropyReductionServices.Singletons
 
         /// <summary>
         /// Rebuilds this singleton on a GameObject of its own, named for the type, so persisting it
-        /// does not drag the rest of a shared host into DontDestroyOnLoad. Returns false when it
-        /// declines, leaving the caller to persist the shared host as before.
+        /// does not drag the rest of a shared GameObject into DontDestroyOnLoad. Returns false when it
+        /// declines, leaving the caller to persist the shared GameObject as before.
         ///
         /// Only for types with no serialized fields, because this destroys the authored component
         /// and constructs a replacement. What that costs even so, and what no check here can see:
@@ -770,13 +770,13 @@ namespace EntropyReductionServices.Singletons
         /// it — break, and the subclass's own Awake body runs on this instance and again on the
         /// replacement. Give the type serialized fields, or put it on its own object, to opt out.
         /// </summary>
-        private bool TryExtractToOwnHost()
+        private bool TryRebuildOnOwnGameObject()
         {
             if (HasSerializedFields)
             {
-                if (!s_warnedSharedHost)
+                if (!s_warnedSharedGameObject)
                 {
-                    s_warnedSharedHost = true;
+                    s_warnedSharedGameObject = true;
                     Debug.LogWarning(
                         $"[SINGLETON] {typeof(T).Name} is persistent but shares '{gameObject.name}' with " +
                         "other components, and has serialized fields, so it cannot be rebuilt on its own " +
@@ -793,20 +793,20 @@ namespace EntropyReductionServices.Singletons
             var doomed = this;
             s_instance = null;
 
-            var host = new GameObject(typeof(T).Name);
-            var replacement = host.AddComponent<T>();   // Awake runs here, claims the slot, persists
+            var owner = new GameObject(typeof(T).Name);
+            var replacement = owner.AddComponent<T>();   // Awake runs here, claims the slot, persists
 
             if (!ReferenceEquals(Current, replacement))
             {
                 Log("extraction did not take; restoring the original.", doomed);
                 Current = (T)doomed;
-                DestroySafe(host);
+                DestroySafe(owner);
                 return false;
             }
 
-            Log($"rebuilt on '{host.name}' to keep '{doomed.gameObject.name}' out of DontDestroyOnLoad.",
+            Log($"rebuilt on '{owner.name}' to keep '{doomed.gameObject.name}' out of DontDestroyOnLoad.",
                 replacement);
-            DestroySafe(doomed);   // the component only; the shared host and its siblings stay
+            DestroySafe(doomed);   // the component only; the shared GameObject and its siblings stay
             return true;
         }
 

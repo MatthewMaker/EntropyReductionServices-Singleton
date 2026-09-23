@@ -43,9 +43,9 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         /// </summary>
         public static T AuthorIn<T>(Scene scene, string name) where T : MonoBehaviour
         {
-            var host = new GameObject(name);
-            SceneManager.MoveGameObjectToScene(host, scene);
-            return host.AddComponent<T>();   // Awake runs here
+            var owner = new GameObject(name);
+            SceneManager.MoveGameObjectToScene(owner, scene);
+            return owner.AddComponent<T>();   // Awake runs here
         }
 
         /// <summary>True when the object sits in Unity's DontDestroyOnLoad scene.</summary>
@@ -130,15 +130,15 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
     internal class UnloadDdolSurvivesFilter : MonoBehaviourSingletonPersistent<UnloadDdolSurvivesFilter> { }
 
-    internal class SharedHostDuplicate : MonoBehaviourSingletonPassive<SharedHostDuplicate> { }
-    internal class SharedHostBystander : MonoBehaviourSingletonPassive<SharedHostBystander> { }
-    internal class SharedHostAlone : MonoBehaviourSingletonPassive<SharedHostAlone> { }
+    internal class SharedObjectDuplicate : MonoBehaviourSingletonPassive<SharedObjectDuplicate> { }
+    internal class SharedObjectBystander : MonoBehaviourSingletonPassive<SharedObjectBystander> { }
+    internal class SharedObjectAlone : MonoBehaviourSingletonPassive<SharedObjectAlone> { }
 
     // Extraction probes. Stateless: nothing Unity would serialize, so rebuilding on a dedicated
-    // host loses nothing and the runtime is allowed to do it.
+    // GameObject loses nothing and the runtime is allowed to do it.
     internal class ExtractStateless : MonoBehaviourSingletonPersistent<ExtractStateless> { }
 
-    // Has a serialized field, so extraction must decline and persist the shared host instead.
+    // Has a serialized field, so extraction must decline and persist the shared GameObject instead.
     internal class ExtractStateful : MonoBehaviourSingletonPersistent<ExtractStateful>
     {
         [SerializeField] private int _configured;

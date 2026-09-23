@@ -238,15 +238,15 @@ singleton is alone on it — `Transform` plus itself. If anything else is riding
 component is destroyed, so a sibling singleton is never collateral damage. Force either answer:
 
 ```csharp
-protected override bool DestroyWholeGameObject => false;   // never take the host
-protected override bool DestroyWholeGameObject => true;    // always take the host
+protected override bool DestroyWholeGameObject => false;   // never take the GameObject
+protected override bool DestroyWholeGameObject => true;    // always take the GameObject
 ```
 
 **Persistent singletons on a shared object.** `DontDestroyOnLoad` moves the whole `GameObject`, so
-a persistent singleton sharing its host drags every sibling into the persistent scene. A singleton
-with no serialized fields is rebuilt on an object of its own named for the type, and the host stays
+a persistent singleton sharing its GameObject drags every sibling into the persistent scene. A singleton
+with no serialized fields is rebuilt on an object of its own named for the type, and the GameObject stays
 put. One with serialized fields cannot be — there is authored state that a rebuild would discard —
-so the host is persisted and *Tools > Entropy Reduction Services > Validate Singleton Hosts* reports
+so the GameObject is persisted and *Tools > Entropy Reduction Services > Validate Singleton Placement* reports
 it.
 
 Note what the rebuild costs even when it is allowed: the component is destroyed and replaced, so

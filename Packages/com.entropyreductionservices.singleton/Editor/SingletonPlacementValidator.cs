@@ -12,7 +12,7 @@ namespace EntropyReductionServices.Singletons.Editor
     /// Reports singletons that share a GameObject, at the point they are authored.
     ///
     /// This is an editor concern and cannot be anything else. The analyzers read source, and a
-    /// shared host is scene data — invisible to the compiler. The runtime can detect it, but by
+    /// shared GameObject is scene data — invisible to the compiler. The runtime can detect it, but by
     /// then the only honest responses are to drag the siblings along or to destroy something, and
     /// neither is a fix: a Component cannot be moved to another GameObject at runtime, so nothing
     /// can relocate an authored singleton without discarding its serialized state.
@@ -24,16 +24,16 @@ namespace EntropyReductionServices.Singletons.Editor
     /// Lives in its own Editor-only assembly so the runtime keeps the "no UnityEditor dependency"
     /// goal in Documentation~/contract.md.
     /// </summary>
-    public static class SingletonHostValidator
+    public static class SingletonPlacementValidator
     {
-        private const string MenuPath = "Tools/Entropy Reduction Services/Validate Singleton Hosts";
+        private const string MenuPath = "Tools/Entropy Reduction Services/Validate Singleton Placement";
 
         [MenuItem(MenuPath)]
         private static void ValidateFromMenu()
         {
             var problems = ValidateLoadedScenes();
             if (problems == 0)
-                Debug.Log("[SINGLETON] No shared singleton hosts found in the loaded scenes.");
+                Debug.Log("[SINGLETON] No shared singleton GameObjects found in the loaded scenes.");
         }
 
         /// <summary>
@@ -44,7 +44,7 @@ namespace EntropyReductionServices.Singletons.Editor
         private static void HookSceneSave() => EditorSceneManager.sceneSaved += _ => ValidateLoadedScenes();
 
         /// <summary>
-        /// Walks every root object of every loaded scene and reports each shared host once.
+        /// Walks every root object of every loaded scene and reports each shared GameObject once.
         /// Returns the number of problems found.
         /// </summary>
         public static int ValidateLoadedScenes()
@@ -57,8 +57,8 @@ namespace EntropyReductionServices.Singletons.Editor
                 if (!scene.isLoaded) continue;
 
                 foreach (var root in scene.GetRootGameObjects())
-                foreach (var host in root.GetComponentsInChildren<Transform>(true))
-                    problems += ReportHost(host.gameObject);
+                foreach (var owner in root.GetComponentsInChildren<Transform>(true))
+                    problems += ReportGameObject(owner.gameObject);
             }
 
             return problems;
@@ -68,9 +68,9 @@ namespace EntropyReductionServices.Singletons.Editor
         /// Emits a warning per problem on one GameObject, with the object as the log context so
         /// clicking the entry selects it in the hierarchy.
         /// </summary>
-        private static int ReportHost(GameObject host)
+        private static int ReportGameObject(GameObject owner)
         {
-            var singletons = host.GetComponents<MonoBehaviour>()
+            var singletons = owner.GetComponents<MonoBehaviour>()
                 .Where(component => component != null && IsSingleton(component.GetType()))
                 .ToList();
 
@@ -82,11 +82,11 @@ namespace EntropyReductionServices.Singletons.Editor
             {
                 problems++;
                 Debug.LogWarning(
-                    $"[SINGLETON] '{Path(host)}' hosts {singletons.Count} singletons: " +
+                    $"[SINGLETON] '{Path(owner)}' has {singletons.Count} singletons on it: " +
                     $"{string.Join(", ", singletons.Select(s => s.GetType().Name))}. Each resolves " +
                     "duplicates independently, and a persistent one moves the whole GameObject to " +
                     "DontDestroyOnLoad, taking the others with it. Give each its own object.",
-                    host);
+                    owner);
             }
 
             // Only the ones that cannot rebuild themselves. A stateless persistent singleton is
@@ -97,7 +97,7 @@ namespace EntropyReductionServices.Singletons.Editor
             if (persistent == null) return problems;
 
             // Transform plus the singletons themselves are expected; anything else is dragged along.
-            var bystanders = host.GetComponents<Component>()
+            var bystanders = owner.GetComponents<Component>()
                 .Where(component => component != null
                                     && !(component is Transform)
                                     && !singletons.Contains(component as MonoBehaviour))
@@ -107,14 +107,14 @@ namespace EntropyReductionServices.Singletons.Editor
             {
                 problems++;
                 Debug.LogWarning(
-                    $"[SINGLETON] '{Path(host)}' hosts the persistent singleton " +
+                    $"[SINGLETON] '{Path(owner)}' carries the persistent singleton " +
                     $"'{persistent.GetType().Name}' alongside " +
                     $"{string.Join(", ", bystanders.Select(b => b.GetType().Name))}. It has serialized " +
                     "fields, so it cannot be rebuilt on an object of its own without losing them. On " +
                     "play the whole GameObject is reparented to the scene root and marked " +
                     $"DontDestroyOnLoad, so those come too. Move '{persistent.GetType().Name}' onto its " +
                     "own object.",
-                    host);
+                    owner);
             }
 
             return problems;
@@ -135,7 +135,7 @@ namespace EntropyReductionServices.Singletons.Editor
         /// </summary>
         private static bool IsSingleton(Type type) => DerivesFrom(type, typeof(MonoBehaviourSingletonBase<>));
 
-        /// <summary>True for the flavours that call DontDestroyOnLoad on their host.</summary>
+        /// <summary>True for the flavours that call DontDestroyOnLoad on their owner.</summary>
         private static bool IsPersistent(Type type) =>
             DerivesFrom(type, typeof(MonoBehaviourSingletonPersistent<>)) ||
             DerivesFrom(type, typeof(MonoBehaviourSingletonPassivePersistent<>));

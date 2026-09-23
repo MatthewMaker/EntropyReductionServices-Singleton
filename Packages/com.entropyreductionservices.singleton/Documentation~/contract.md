@@ -89,21 +89,21 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 - **Setting `hideFlags` on a singleton yourself.** The find path depends on them.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
 - **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged on any flavour
-  that deduplicates. A duplicate now destroys only itself when its host carries anything else, so a
-  sibling singleton is no longer collateral; the host does still travel as one object, so a
+  that deduplicates. A duplicate now destroys only itself when its GameObject carries anything else, so a
+  sibling singleton is no longer collateral; the GameObject does still travel as one object, so a
   persistent flavour reparents its siblings to the scene root and makes them persistent too. See
-  `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Hosts*,
+  `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Placement*,
   which reports both cases in the loaded scenes and on every scene save.
 
   A persistent singleton **with no serialized fields** resolves this itself: it is rebuilt on a
-  new `GameObject` named for the type, and the shared host stays in the scene. A `Component` cannot
+  new `GameObject` named for the type, and the shared GameObject stays in the scene. A `Component` cannot
   be moved between `GameObject`s, so this destroys the authored component and constructs a
   replacement — safe only because there was no serialized state to carry across. Two costs remain
   that no check can see: **serialized references to the component break** (an inspector field or a
   `UnityEvent` wired to it), and the subclass's own `Awake` body runs on both the original and the
   replacement. Give the type a serialized field, or put it on its own object, to opt out.
 
-  With serialized fields there is nothing safe to do, so the host is persisted as before and the
+  With serialized fields there is nothing safe to do, so the GameObject is persisted as before and the
   validator reports it.
 - **Unguarded `OnDestroy` / `OnApplicationQuit` access to a `UnityEngine` member** of the
   singleton. Your own members are fine there. ERS0003. See [Teardown](#teardown).
@@ -131,9 +131,9 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   the rest of the session.
 - `DestroyImmediate` in edit mode can invalidate an enumeration you are inside.
 - The duplicate blast radius is decided inside the duplicate's `Awake`, from the components present
-  at that moment. A scene-authored or prefab host has them all by then. A singleton added with
+  at that moment. A scene-authored or prefab GameObject has them all by then. A singleton added with
   `AddComponent` to a live object *before* its siblings is evaluated while alone on it, and will
-  still take the host with it — add the singleton last, or build the host inactive.
+  still take the GameObject with it — add the singleton last, or build the GameObject inactive.
 - Additive scene loads still produce a duplicate. It self-destructs, but its `Awake` has already
   run by then.
 - The scene-unload window only opens if a singleton is itself destroyed by the unload. If none was,
