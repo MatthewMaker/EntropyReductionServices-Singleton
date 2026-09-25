@@ -180,7 +180,19 @@ GitHub Pro or make this repository public`). These steps wait until it is public
    which refs receive the secrets.
 4. **Enable immutable releases** in the repository settings, so a published release's tag and
    assets cannot be changed.
-5. **Register the package with OpenUPM** with `trackingMode: githubRelease`, so it publishes the
+5. **Turn on the security settings** GitHub offers free on public repos, all currently off:
+   ```sh
+   R=repos/MatthewMaker/EntropyReductionServices-Singleton
+   gh api -X PATCH $R -f 'security_and_analysis[secret_scanning][status]=enabled' \
+     -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled'
+   gh api -X PUT $R/vulnerability-alerts            # Dependabot alerts
+   gh api -X PUT $R/private-vulnerability-reporting # SECURITY.md points reporters here
+   ```
+   Then, under Settings → Actions → General: **require actions to be pinned to a full-length
+   commit SHA** (every workflow already is), and **require approval for fork pull request
+   workflows from all outside collaborators**. Optionally add yourself as a required reviewer on
+   the `release` environment, so every signing run waits for approval.
+6. **Register the package with OpenUPM** with `trackingMode: githubRelease`, so it publishes the
    signed Release asset rather than packing the tag itself. Then
    `gh variable set OPENUPM_ENABLED --body true` to turn on the `openupm` job in `release.yml`.
 

@@ -16,7 +16,7 @@ jobs:
     name: Build analyzer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # The two generated-file checks need only python3, which ubuntu-latest preinstalls.
       # They run before setup-dotnet so the cheapest failures do not wait on an SDK download.
@@ -32,13 +32,13 @@ jobs:
         # checked by the test suite below, which needs a runtime to read it.
         run: python3 scripts/sync-version.py --check
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '8.0.x'
 
       # No lock files are committed, so setup-dotnet's built-in cache cannot key on one.
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Packages/com.entropyreductionservices.singleton/Analyzers~/**/*.csproj') }}
