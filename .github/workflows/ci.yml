@@ -1,17 +1,16 @@
-# Confirms the package imports and compiles on the Unity version the README claims.
+# Runs the EditMode and PlayMode suites on the Unity version package.json declares as its floor.
 #
-# The filename is deliberately still ci.yml. GitHub keys a workflow — including whether it is
-# disabled — to its path. It was disabled because it could not pass: the runner exhausted its disk
-# pulling the ~5 GB editor image, and there was no UNITY_LICENSE secret. Renaming the file would
-# register a NEW workflow, enabled by default. Rename it to unity.yml once the job is known to work.
+# The filename is still ci.yml because GitHub keys a workflow, and whether it is disabled, to its
+# path, and this one was disabled until it could pass.
 #
 # The analyzer used to be a second job here. It now lives in analyzer.yml so it can be enabled
 # on its own; one workflow holding both meant disabling this also disabled the only checks that
 # pass. The consequence of the split is that there is no longer a `needs:` edge, so this no
 # longer waits for the analyzer to go green before spending a runner.
 #
-# Requires UNITY_LICENSE (and UNITY_EMAIL / UNITY_PASSWORD for a Personal licence) in repository
-# secrets; see https://game.ci/docs/github/activation
+# Requires UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD in repository secrets; see
+# https://game.ci/docs/github/activation. With a Personal licence the .ulf's machine binding never
+# matches the runner, so activation falls back to the account credentials.
 name: Unity
 
 on:

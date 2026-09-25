@@ -38,8 +38,8 @@ scripts/release.sh 2.3.1 --execute --push
 Use it only when the runtime code matches a commit whose suites you have already run; the tag
 message records that they were skipped.
 
-It is a local script rather than a workflow because the Unity suites are the release gate and CI
-cannot run them. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
+It is a local script rather than a workflow because its Unity suites run on the project's own
+editor (6000.5), while CI runs them only on the 6000.3 floor. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
 matching Unity editor is installed (unless `--skip-unity`), and `CHANGELOG.md` has an `## [Unreleased]` heading to
 promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocker — the script
 moves them into `AnalyzerReleases.Shipped.md` under the new version as part of the release commit. Pushing is a separate flag: a
@@ -56,7 +56,8 @@ a broken package if skipped:
 3. **Rebuild and recommit the analyzer DLL.** The csproj stamps the version into the assembly, so
    a version bump without a rebuild ships a binary claiming the old version. `CommittedAnalyzerVersionTests`
    in `Analyzers~/Tests` fails when you forget.
-4. **Verify locally** — all four suites, below. CI cannot do this for you.
+4. **Verify locally** — all four suites, below. CI covers the 6000.3 floor, not the project's
+   editor.
 5. **Commit**, then `git tag -a vX.Y.Z -m "..."`, then `git push origin main --follow-tags`.
 6. **Publishing is automatic.** Pushing the tag triggers `.github/workflows/release.yml`, which
    signs the package once with `upm pack` and publishes that tarball as a GitHub Release asset, to
@@ -95,9 +96,11 @@ consumers and is a major bump — that is why 2.0.0 followed 1.0.2.
 
 ## Verifying before a release
 
-The Unity job requires a `UNITY_LICENSE` secret to activate an editor; where that is unavailable
-the job cannot run and the analyzer job is the only CI signal. **Treat a local run as the gate**
-before tagging, rather than assuming CI has covered it.
+The Unity job in `ci.yml` runs both suites on 6000.3.24f1, the floor. It activates a Personal
+licence from the `UNITY_EMAIL` and `UNITY_PASSWORD` secrets: `UNITY_LICENSE` holds a `.ulf` whose
+machine binding never matches a runner, so GameCI falls back to the account, and returns the
+licence when the job ends. **Treat a local run as the gate** for the project's own editor, which CI
+does not cover.
 
 Note for zsh: paths containing `Analyzers~` must be quoted or the tilde is expanded and the `cd`
 fails.
@@ -223,18 +226,16 @@ default tracker can publish an unsigned build first. Once the package page exist
 - **Two `Default.ruleset` copies exist on purpose.** Unity resolves rulesets per asmdef folder,
   and the single shareable `Default.ruleset` must sit in an `Assets` root that a UPM package does
   not have. They are generated rather than hand-synced — see Analyzer severities above.
-- **Three workflows, one of them disabled.** `analyzer.yml` runs on pushes to `main`, `v*` tags,
-  pull requests and manual dispatch. `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) is
-  `disabled_manually`: the Unity runner exhausts its disk pulling the ~5 GB editor image and has no
-  `UNITY_LICENSE`. Re-enable with `gh workflow enable Unity` — a switch, not a revert; the file is
-  written as it will run. OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather than
-  a disabled workflow, because it returns `404 PackageNotFound` until the package is registered.
+- **Three workflows.** `analyzer.yml` runs on pushes to `main`, `v*` tags, pull requests and manual
+  dispatch. `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) runs on pushes to `main`,
+  tags and manual dispatch. OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather
+  than a disabled workflow, because it returns `404 PackageNotFound` until the package is
+  registered.
   `.github/dependabot.yml` opens a weekly grouped PR moving the SHA-pinned actions forward.
-- **`ci.yml` holds the Unity job despite the name.** GitHub keys a workflow, and its disabled
-  state, to the file path. Renaming it to `unity.yml` would register a new workflow that is
-  enabled by default and would fail immediately. Rename when the job works. Its job runs only on
-  `main`, tags and manual dispatch, because it pulls a ~5 GB editor image — a poor trade on every
-  pull request. It uses the `base` editor image rather than `il2cpp`, which exhausted the runner's
-  disk, and targets one version, 6000.3.24f1, matching the `package.json` floor. Because it is
-  disabled, that floor is untested: the local release gate runs the project's editor version.
+- **`ci.yml` holds the Unity job despite the name.** It was kept at that path while disabled,
+  because GitHub keys a workflow and its disabled state to the file path. Its job skips pull
+  requests because it pulls a ~5 GB editor image — a poor trade on every pull request. It first
+  deletes unused preinstalled toolchains, because that image exhausted the runner's disk, and uses
+  the `base` editor image rather than `il2cpp`. It targets one version, 6000.3.24f1, matching the
+  `package.json` floor. Its first run found that the runtime did not compile on that floor.
 - **`analyzer.yml`** needs no Unity and is fast, so it is the CI signal on every pull request.
