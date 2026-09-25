@@ -1,10 +1,9 @@
 # Confirms the package imports and compiles on the Unity version the README claims.
 #
 # The filename is deliberately still ci.yml. GitHub keys a workflow — including whether it is
-# disabled — to its path, and this one is currently disabled because it cannot pass: the runner
-# exhausts its disk pulling the ~5 GB editor image, and there is no UNITY_LICENSE secret.
-# Renaming the file would register a NEW workflow, enabled by default, which would run and fail
-# immediately. Rename it to unity.yml when the job actually works.
+# disabled — to its path. It was disabled because it could not pass: the runner exhausted its disk
+# pulling the ~5 GB editor image, and there was no UNITY_LICENSE secret. Renaming the file would
+# register a NEW workflow, enabled by default. Rename it to unity.yml once the job is known to work.
 #
 # The analyzer used to be a second job here. It now lives in analyzer.yml so it can be enabled
 # on its own; one workflow holding both meant disabling this also disabled the only checks that
@@ -28,11 +27,16 @@ jobs:
   # analyzer.yml runs everywhere, so a pull request keeps fast feedback on the rule set.
   #
   # One version, matching package.json's "unity" floor. 6000.3 is the current LTS, supported
-  # until December 2027; 6.0 LTS ended in October 2026 and 2022 LTS in May 2025. The matrix stays
+  # until December 2027; 6.0 LTS ends in October 2026 and 2022 LTS ended in May 2025. The matrix stays
   # a matrix so a second version can be added by editing a list rather than restructuring the job.
   unity:
     name: Unity ${{ matrix.unityVersion }}
     runs-on: ubuntu-latest
+    # checks: write lets the test runner publish its results as a check run; the repository's
+    # default token is read-only.
+    permissions:
+      contents: read
+      checks: write
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref == 'refs/heads/main' ||
@@ -43,6 +47,16 @@ jobs:
         unityVersion:
           - 6000.3.24f1
     steps:
+      - name: Free disk space for the editor image
+        # The editor image is ~5 GB compressed and several times that unpacked, which exhausted
+        # the runner's disk. These preinstalled toolchains are unused by this job.
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
