@@ -12,15 +12,14 @@
 # Re-running failed jobs reuses the `sign` job's artifact, so a retried publish sends the same
 # signed bytes. Both publish jobs are written to be safe to re-run.
 #
-# workflow_dispatch is a dry run on any ref: it verifies, signs, checks the tarball, and checks
-# that the Verdaccio token authenticates, but publishes nothing.
+# There is no manual trigger: the release environment holding the secrets accepts only v* tags,
+# so a run from any other ref could not sign.
 name: Release
 
 on:
   push:
     # Must match the tag rulesets in .github/rulesets/ — change them together.
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,7 +56,6 @@ jobs:
           echo "version=$(jq -r .version "$PKG/package.json")" >> "$GITHUB_OUTPUT"
 
       - name: Tag matches package.json
-        if: github.event_name == 'push'
         env:
           VERSION: ${{ steps.pkg.outputs.version }}
         run: |
@@ -115,7 +113,6 @@ jobs:
   github-release:
     name: GitHub Release
     needs: [verify, sign]
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -191,7 +188,6 @@ jobs:
           echo "Authenticated to Verdaccio as $(npm whoami)"
 
       - name: Publish
-        if: github.event_name == 'push'
         run: |
           want="sha512-$(openssl dgst -sha512 -binary "$TGZ" | base64 -w0)"
           have=$(npm view "$SPEC" dist.integrity 2>/dev/null || true)
@@ -214,7 +210,7 @@ jobs:
     # result here. It authenticates by GitHub OIDC; there is no token to configure.
     name: OpenUPM
     needs: github-release
-    if: github.event_name == 'push' && vars.OPENUPM_ENABLED == 'true'
+    if: vars.OPENUPM_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

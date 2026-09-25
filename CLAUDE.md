@@ -61,8 +61,8 @@ a broken package if skipped:
    signs the package once with `upm pack` and publishes that tarball as a GitHub Release asset, to
    Verdaccio, and (when `OPENUPM_ENABLED` is set) to OpenUPM. Check the workflow result rather than
    assuming — a tag whose version does not match `package.json` is rejected before anything is
-   signed. `gh workflow run Release` is a dry run: it signs and checks the tarball and the
-   Verdaccio token, and publishes nothing.
+   signed. There is no dry run: the `release` environment accepts only `v*` tags, so the first
+   run of any change to the workflow is a real release.
 
    `VERDACCIO_TOKEN` is a JWT from Verdaccio's GitHub OAuth login and expires a year after it is
    issued. The Verdaccio job prints its expiry date, warns within 30 days of it, and fails once it
