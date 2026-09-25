@@ -175,6 +175,8 @@ GitHub Pro or make this repository public`). These steps wait until it is public
      one triggers publication.
    - `release-tags-immutable.json` — no one, admins included, may move or delete a `v*` tag. To do
      so deliberately, set that ruleset to `disabled`, act, and re-enable it.
+   - `main-branch.json` — no one may force-push or delete `main`. Pull requests are not required;
+     trunk pushes still work.
 
    Both match `refs/tags/v*`, the same pattern `release.yml` triggers on. Change them
    together.

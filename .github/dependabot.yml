@@ -1,0 +1,12 @@
+# Every action in .github/workflows is pinned to a full commit SHA, which the repository requires,
+# so nothing moves them forward on its own. Dependabot opens PRs that update both the SHA and its
+# `# vX.Y.Z` comment.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
