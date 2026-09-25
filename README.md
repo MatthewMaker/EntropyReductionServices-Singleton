@@ -1,5 +1,10 @@
 # Unity Singletons
 
+[![Analyzer](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/actions/workflows/analyzer.yml/badge.svg?branch=main)](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/actions/workflows/analyzer.yml)
+[![Unity 6000.3 tests](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/actions/workflows/ci.yml)
+[![Unity 6000.3+](https://img.shields.io/badge/Unity-6000.3%2B-black?logo=unity)](Packages/com.entropyreductionservices.singleton/package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](Packages/com.entropyreductionservices.singleton/LICENSE)
+
 MonoBehaviour singleton base classes that survive domain reload, scene loads and application
 shutdown.
 
@@ -13,6 +18,7 @@ MIT licensed. Unity 6.3 LTS and newer.
 
 ```csharp
 using EntropyReductionServices.Singletons;
+using UnityEngine;
 
 public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
 {
@@ -23,6 +29,9 @@ public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
         base.Awake();                       // claims the slot, destroys duplicates
         _source = GetComponent<AudioSource>();
     }
+
+    public void Play(AudioClip clip) => _source.PlayOneShot(clip);
+    public void Stop() => _source.Stop();
 }
 ```
 
@@ -33,7 +42,7 @@ private void OnDestroy()
 {
     // During teardown Instance returns the destroyed component rather than null, so managed
     // calls are safe. Guard anything that touches the GameObject.
-    if (AudioBus.TryGetInstance(out var bus)) bus.Unregister(this);
+    if (AudioBus.TryGetInstance(out var bus)) bus.Stop();
 }
 ```
 
@@ -77,6 +86,8 @@ attributes, and the things this deliberately will not do.
 **[contract.md](Packages/com.entropyreductionservices.singleton/Documentation~/contract.md)** is
 the normative contract: guarantees, teardown semantics, constraints on your subclass, forbidden
 usages, side effects and known gaps. Read it before relying on any of them.
+
+**[CHANGELOG.md](Packages/com.entropyreductionservices.singleton/CHANGELOG.md)** lists what changed in each release.
 
 ## Install
 

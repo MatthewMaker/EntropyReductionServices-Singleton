@@ -13,6 +13,7 @@ exactly what it guarantees.
 
 ```csharp
 using EntropyReductionServices.Singletons;
+using UnityEngine;
 
 public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
 {
@@ -23,6 +24,9 @@ public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
         base.Awake();                       // claims the slot, destroys duplicates
         _source = GetComponent<AudioSource>();
     }
+
+    public void Play(AudioClip clip) => _source.PlayOneShot(clip);
+    public void Stop() => _source.Stop();
 }
 ```
 
