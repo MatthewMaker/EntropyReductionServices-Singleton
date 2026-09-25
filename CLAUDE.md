@@ -199,9 +199,13 @@ GitHub Pro or make this repository public`). These steps wait until it is public
    commit SHA** (every workflow already is), and **require approval for fork pull request
    workflows from all outside collaborators**. Optionally add yourself as a required reviewer on
    the `release` environment, so every signing run waits for approval.
-6. **Register the package with OpenUPM** with `trackingMode: githubRelease`, so it publishes the
-   signed Release asset rather than packing the tag itself. Then
-   `gh variable set OPENUPM_ENABLED --body true` to turn on the `openupm` job in `release.yml`.
+6. **Register the package with OpenUPM** at https://openupm.com/packages/add/, then edit the
+   generated PR's YAML to add `trackingMode: githubRelease`, so it publishes the signed Release
+   asset rather than packing the tag itself, and `minVersion: 2.6.0`. No earlier tag has a signed
+   Release asset: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite commit that is not
+   in this repository, so it was not backfilled. Push no `v*` tag until that PR is merged, or
+   OpenUPM's default tracker can publish an unsigned build first. Once the package page exists,
+   `gh variable set OPENUPM_ENABLED --body true` turns on the `openupm` job in `release.yml`.
 
 ## Non-obvious repo facts
 
