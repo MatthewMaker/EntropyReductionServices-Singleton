@@ -12,9 +12,12 @@
 #     scripts/release.sh 2.3.1 --execute --push
 #     scripts/release.sh patch --execute --skip-unity
 #
-# The verification step runs the Unity EditMode and PlayMode suites, which CI cannot: the Unity
-# job has no licence and exhausts the runner's disk on the editor image. That is the whole reason
-# this is a local script rather than a workflow_dispatch job.
+# The verification step runs the Unity EditMode and PlayMode suites on the project's own editor
+# version. CI runs them only on the 6000.3 floor, which is why this is a local script rather than a
+# workflow_dispatch job.
+#
+# The editor is located by asking the Unity CLI (`unity editors --installed`), so it is found
+# wherever Unity Hub installed it. Set UNITY to an editor executable to override the lookup.
 #
 # --skip-unity drops the Unity suites and the check that the editor is installed, for machines
 # without Unity. The analyzer steps still run. It is only sound when the runtime code is identical
@@ -87,14 +90,39 @@ if git rev-parse --verify --quiet origin/main >/dev/null; then
         || die "main differs from origin/main. Pull or push first."
 fi
 
+# Prints the executable of the installed editor matching $1, or nothing.
+#
+# Asks the Unity CLI, which knows wherever Hub installed each editor, then falls back to Hub's
+# default macOS location. An editor's location is an app bundle on macOS and a folder elsewhere,
+# so the executable is derived from whichever shape comes back.
+resolve_unity() {
+    local version="$1" location=""
+    if command -v unity >/dev/null; then
+        location="$(unity editors --installed --json --verbose --no-banner 2>/dev/null | python3 -c '
+import json, sys
+try:
+    editors = json.load(sys.stdin).get("data") or []
+except ValueError:
+    editors = []
+print(next((e.get("location", "") for e in editors if e.get("version") == sys.argv[1]), ""))
+' "$version")"
+    fi
+    [ -n "$location" ] || location="/Applications/Unity/Hub/Editor/$version/Unity.app"
+    local candidate
+    for candidate in "$location/Contents/MacOS/Unity" "$location/Editor/Unity" "$location"; do
+        [ -f "$candidate" ] && [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return; }
+    done
+}
+
 # Unity is resolved from the project's own version, never hardcoded.
 UNITY_VERSION="$(awk -F': ' '/^m_EditorVersion:/ {print $2}' ProjectSettings/ProjectVersion.txt | tr -d '\r')"
-UNITY="/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+UNITY="${UNITY:-$(resolve_unity "$UNITY_VERSION")}"
 if [ "$SKIP_UNITY" -eq 1 ]; then
     note "Unity suites SKIPPED (--skip-unity). Only sound if the runtime code is already tested."
 else
-    [ -x "$UNITY" ] || die "no Unity $UNITY_VERSION at $UNITY. The runtime suites are the release gate."
-    note "Unity $UNITY_VERSION"
+    [ -n "$UNITY" ] && [ -x "$UNITY" ] \
+        || die "no Unity $UNITY_VERSION installed (checked \`unity editors --installed\` and Hub's default path). Install it with \`unity install $UNITY_VERSION\`, or set UNITY. The runtime suites are the release gate."
+    note "Unity $UNITY_VERSION at $UNITY"
 fi
 
 # Rules still in Unshipped are moved into Shipped as part of the release commit, not before it.

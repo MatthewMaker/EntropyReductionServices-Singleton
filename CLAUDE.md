@@ -40,7 +40,8 @@ message records that they were skipped.
 
 It is a local script rather than a workflow because its Unity suites run on the project's own
 editor (6000.5), while CI runs them only on the 6000.3 floor. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
-matching Unity editor is installed (unless `--skip-unity`), and `CHANGELOG.md` has an `## [Unreleased]` heading to
+matching Unity editor is installed (unless `--skip-unity`; it asks `unity editors --installed`,
+or takes an explicit `UNITY=/path/to/editor`), and `CHANGELOG.md` has an `## [Unreleased]` heading to
 promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocker — the script
 moves them into `AnalyzerReleases.Shipped.md` under the new version as part of the release commit. Pushing is a separate flag: a
 local tag is trivially deletable, a pushed one triggers publication.
@@ -108,7 +109,10 @@ fails.
 ```sh
 # Run from the repo root. Each step is a subshell, so the cd does not carry into the next.
 PKG="Packages/com.entropyreductionservices.singleton"
-UNITY="/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app/Contents/MacOS/Unity"
+# The installed editor matching ProjectVersion.txt, found the way release.sh finds it (macOS path).
+VER="$(awk -F': ' '/^m_EditorVersion:/ {print $2}' ProjectSettings/ProjectVersion.txt)"
+UNITY="$(unity editors --installed --json --verbose --no-banner \
+  | jq -r --arg v "$VER" '.data[] | select(.version == $v) | .location')/Contents/MacOS/Unity"
 
 # 1. Analyzer builds clean. TreatWarningsAsErrors catches RS-prefixed authoring mistakes
 #    (unregistered rules, missing release tracking) that would otherwise ship silently.
