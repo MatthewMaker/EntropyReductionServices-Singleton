@@ -64,6 +64,11 @@ a broken package if skipped:
    signed. `gh workflow run Release` is a dry run: it signs and checks the tarball and the
    Verdaccio token, and publishes nothing.
 
+   `VERDACCIO_TOKEN` is a JWT from Verdaccio's GitHub OAuth login and expires a year after it is
+   issued. The Verdaccio job prints its expiry date, warns within 30 days of it, and fails once it
+   has passed. To renew: log in to Verdaccio again, then
+   `gh secret set VERDACCIO_TOKEN --env release`.
+
 ### The version locations
 
 `package.json` is the source of truth. The others are generated from it or checked against it by
