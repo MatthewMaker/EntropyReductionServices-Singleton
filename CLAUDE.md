@@ -151,6 +151,34 @@ clone — git does not version `.git/hooks`:
 git config core.hooksPath .githooks
 ```
 
+## Going public
+
+The repo is private on a Free plan, where GitHub refuses rulesets and environments (`403 Upgrade to
+GitHub Pro or make this repository public`). These steps wait until it is public, in this order:
+
+1. **Make the repository public.**
+2. **Apply the tag rulesets** committed under `.github/rulesets/`:
+   ```sh
+   for f in .github/rulesets/*.json; do
+     gh api -X POST repos/MatthewMaker/EntropyReductionServices-Singleton/rulesets --input "$f"
+   done
+   ```
+   - `release-tags-creation.json` — only repository admins may create a `v*` tag, since pushing
+     one triggers publication.
+   - `release-tags-immutable.json` — no one, admins included, may move or delete a `v*` tag. To do
+     so deliberately, set that ruleset to `disabled`, act, and re-enable it.
+
+   Both match `refs/tags/v*`, the same pattern the publishing workflows trigger on. Change them
+   together.
+3. **Create a `release` environment** whose deployment policy allows only tags matching `v*`, and
+   put the publishing secrets there rather than at repo level: `UPM_SERVICE_ACCOUNT_KEY_ID`,
+   `UPM_SERVICE_ACCOUNT_KEY_SECRET`, `VERDACCIO_TOKEN`. The rulesets control who can create a
+   release tag; the environment controls which refs receive the secrets.
+4. **Enable immutable releases** in the repository settings, so a published release's tag and
+   assets cannot be changed.
+5. **Register the package with OpenUPM**, then `gh workflow enable OpenUPM` (see the workflow
+   notes below).
+
 ## Non-obvious repo facts
 
 - **The analyzer's stub Unity hierarchy lives in one place.** `Analyzers~/Shared/SingletonStubs.cs`
