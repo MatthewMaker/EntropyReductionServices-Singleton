@@ -1,0 +1,212 @@
+# Signs the package once and publishes that one tarball everywhere: a GitHub Release asset,
+# Verdaccio, and (once enabled) OpenUPM, which is configured to track GitHub Release assets rather
+# than building its own unsigned tarball from the tag.
+#
+# scripts/release.sh is still the release gate — it runs the Unity suites CI cannot, and creates
+# and pushes the annotated tag. This workflow starts from that tag.
+#
+# All publishing is jobs in this one workflow rather than separate workflows chained on
+# `release: published`, because GitHub starts no new workflow runs for events caused by
+# GITHUB_TOKEN, so a release created here would never trigger them.
+#
+# Re-running failed jobs reuses the `sign` job's artifact, so a retried publish sends the same
+# signed bytes. Both publish jobs are written to be safe to re-run.
+#
+# workflow_dispatch is a dry run on any ref: it verifies, signs, checks the tarball, and checks
+# that the Verdaccio token authenticates, but publishes nothing.
+name: Release
+
+on:
+  push:
+    # Must match the tag rulesets in .github/rulesets/ — change them together.
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PKG: Packages/com.entropyreductionservices.singleton
+  REGISTRY: https://cicd.entropyreductionservices.com/
+  # Not secret; the same id is passed to `upm pack` locally.
+  UPM_ORG_ID: '20066131207815'
+  # Pinned, with the hash pinned here rather than fetched from the CDN beside the zip.
+  # To upgrade: read cdn.packages.unity.com/upm-cli/latest.txt, then take the hash from
+  # releases/<version>/upm-linux-x64.zip.sha256 and verify it against a download.
+  UPM_CLI_VERSION: v9.32.0
+  UPM_CLI_SHA256: 1de355a1bd5daf134a4dc7b6f97194e0db89cfedd0f98b5d8204603f7d009c21
+
+jobs:
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.pkg.outputs.name }}
+      version: ${{ steps.pkg.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read package.json
+        id: pkg
+        run: |
+          echo "name=$(jq -r .name "$PKG/package.json")" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r .version "$PKG/package.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag matches package.json
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          if [ "${GITHUB_REF_NAME#v}" != "$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+      - name: Package version is consistent
+        run: python3 scripts/sync-version.py --check
+
+  sign:
+    name: Sign
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the UPM CLI
+        run: |
+          zip="$RUNNER_TEMP/upm.zip"
+          curl -fsSL -o "$zip" "https://cdn.packages.unity.com/upm-cli/releases/$UPM_CLI_VERSION/upm-linux-x64.zip"
+          echo "$UPM_CLI_SHA256  $zip" | sha256sum -c -
+          unzip -q "$zip" -d "$RUNNER_TEMP/upm"
+          chmod +x "$RUNNER_TEMP/upm/UnityPackageManager"
+
+      - name: Pack and sign
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          "$RUNNER_TEMP/upm/UnityPackageManager" pack "$PKG" \
+            --organization-id "$UPM_ORG_ID" --destination "$RUNNER_TEMP/out"
+
+      - name: Tarball is signed and ships what npm pack would
+        # upm pack follows .npmignore, adding only the signature. Checked on every release so a
+        # change in either tool's packing rules cannot silently ship Analyzers~/ or drop a .meta.
+        env:
+          TGZ: ${{ runner.temp }}/out/${{ needs.verify.outputs.name }}-${{ needs.verify.outputs.version }}.tgz
+        run: |
+          tar tzf "$TGZ" | sort > "$RUNNER_TEMP/actual.txt"
+          { ( cd "$PKG" && npm pack --dry-run --json ) | jq -r '.[0].files[].path | "package/" + .'
+            echo package/.attestation.p7m; } | sort > "$RUNNER_TEMP/expected.txt"
+          diff "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
+          echo "sha256: $(sha256sum "$TGZ" | cut -d' ' -f1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-package
+          path: ${{ runner.temp }}/out/*.tgz
+          if-no-files-found: error
+
+  github-release:
+    name: GitHub Release
+    needs: [verify, sign]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TGZ: ${{ needs.verify.outputs.name }}-${{ needs.verify.outputs.version }}.tgz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-package
+
+      - name: Create the release
+        env:
+          NAME: ${{ needs.verify.outputs.name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --json isDraft > "$RUNNER_TEMP/existing.json" 2>/dev/null; then
+            # A re-run. gh uploads assets to a draft before publishing, so a failed first attempt
+            # can leave a draft behind; finish it. A published release must already hold these bytes.
+            if [ "$(jq -r .isDraft "$RUNNER_TEMP/existing.json")" = true ]; then
+              gh release upload "$GITHUB_REF_NAME" "$TGZ" --clobber
+              gh release edit "$GITHUB_REF_NAME" --draft=false
+            else
+              gh release download "$GITHUB_REF_NAME" --pattern "$TGZ" --dir "$RUNNER_TEMP/published"
+              cmp "$TGZ" "$RUNNER_TEMP/published/$TGZ"
+            fi
+            exit 0
+          fi
+          # Notes are the version's CHANGELOG section, up to the next heading.
+          awk -v h="## [$VERSION]" 'index($0, h) == 1 { f = 1; next } f && /^## \[/ { exit } f' \
+            "$PKG/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" "$TGZ" --verify-tag \
+            --title "$NAME $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+  verdaccio:
+    name: Verdaccio
+    needs: [verify, sign]
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      SPEC: ${{ needs.verify.outputs.name }}@${{ needs.verify.outputs.version }}
+      TGZ: ${{ needs.verify.outputs.name }}-${{ needs.verify.outputs.version }}.tgz
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-package
+
+      - name: Authenticate
+        env:
+          VERDACCIO_TOKEN: ${{ secrets.VERDACCIO_TOKEN }}
+        run: |
+          # A per-job npmrc; the runner context is not available to job-level env.
+          npmrc="$RUNNER_TEMP/.npmrc"
+          printf 'registry=%s\n//%s:_authToken=%s\n' "$REGISTRY" "${REGISTRY#https://}" "$VERDACCIO_TOKEN" > "$npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$npmrc" >> "$GITHUB_ENV"
+          export NPM_CONFIG_USERCONFIG="$npmrc"
+          echo "Authenticated to Verdaccio as $(npm whoami)"
+
+      - name: Publish
+        if: github.event_name == 'push'
+        run: |
+          want="sha512-$(openssl dgst -sha512 -binary "$TGZ" | base64 -w0)"
+          have=$(npm view "$SPEC" dist.integrity 2>/dev/null || true)
+          if [ -z "$have" ]; then
+            npm publish "$TGZ"
+            have=$(npm view "$SPEC" dist.integrity)
+          fi
+          # Passes on a re-run that finds these bytes already published; fails if the version
+          # holds a different tarball, which a re-run must never paper over.
+          if [ "$have" != "$want" ]; then
+            echo "::error::$SPEC on Verdaccio has integrity $have, expected $want"
+            exit 1
+          fi
+
+  openupm:
+    # OpenUPM returns 404 PackageNotFound until the package is registered, which needs the repo to
+    # be public. Set the repository variable OPENUPM_ENABLED to true once it is.
+    #
+    # Notifies OpenUPM so it publishes without waiting for its polling pipeline, and reports the
+    # result here. It authenticates by GitHub OIDC; there is no token to configure.
+    name: OpenUPM
+    needs: github-release
+    if: github.event_name == 'push' && vars.OPENUPM_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: openupm/openupm-action@89b79dc8dd6cb319efff06727f8fa0051ce7e517 # v1.0.1
+        with:
+          package: com.entropyreductionservices.singleton
+          tag: ${{ github.ref_name }}

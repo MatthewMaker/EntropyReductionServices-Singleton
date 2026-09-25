@@ -57,9 +57,12 @@ a broken package if skipped:
    in `Analyzers~/Tests` fails when you forget.
 4. **Verify locally** — all four suites, below. CI cannot do this for you.
 5. **Commit**, then `git tag -a vX.Y.Z -m "..."`, then `git push origin main --follow-tags`.
-6. **Publishing is automatic.** Pushing the tag triggers `.github/workflows/openupm.yml`, which
-   tells OpenUPM to build and publish that version. Check the workflow result rather than
-   assuming — a tag whose version does not match `package.json` is rejected at that point.
+6. **Publishing is automatic.** Pushing the tag triggers `.github/workflows/release.yml`, which
+   signs the package once with `upm pack` and publishes that tarball as a GitHub Release asset, to
+   Verdaccio, and (when `OPENUPM_ENABLED` is set) to OpenUPM. Check the workflow result rather than
+   assuming — a tag whose version does not match `package.json` is rejected before anything is
+   signed. `gh workflow run Release` is a dry run: it signs and checks the tarball and the
+   Verdaccio token, and publishes nothing.
 
 ### The version locations
 
@@ -168,16 +171,18 @@ GitHub Pro or make this repository public`). These steps wait until it is public
    - `release-tags-immutable.json` — no one, admins included, may move or delete a `v*` tag. To do
      so deliberately, set that ruleset to `disabled`, act, and re-enable it.
 
-   Both match `refs/tags/v*`, the same pattern the publishing workflows trigger on. Change them
+   Both match `refs/tags/v*`, the same pattern `release.yml` triggers on. Change them
    together.
-3. **Create a `release` environment** whose deployment policy allows only tags matching `v*`, and
-   put the publishing secrets there rather than at repo level: `UPM_SERVICE_ACCOUNT_KEY_ID`,
-   `UPM_SERVICE_ACCOUNT_KEY_SECRET`, `VERDACCIO_TOKEN`. The rulesets control who can create a
-   release tag; the environment controls which refs receive the secrets.
+3. **Restrict the `release` environment** to tags matching `v*`. The environment and its secrets
+   (`UPM_SERVICE_ACCOUNT_KEY_ID`, `UPM_SERVICE_ACCOUNT_KEY_SECRET`, `VERDACCIO_TOKEN`) already
+   exist and work while private; only the deployment policy is unavailable, so until then any ref
+   can deploy to it. The rulesets control who can create a release tag; the environment controls
+   which refs receive the secrets.
 4. **Enable immutable releases** in the repository settings, so a published release's tag and
    assets cannot be changed.
-5. **Register the package with OpenUPM**, then `gh workflow enable OpenUPM` (see the workflow
-   notes below).
+5. **Register the package with OpenUPM** with `trackingMode: githubRelease`, so it publishes the
+   signed Release asset rather than packing the tag itself. Then
+   `gh variable set OPENUPM_ENABLED --body true` to turn on the `openupm` job in `release.yml`.
 
 ## Non-obvious repo facts
 
@@ -202,8 +207,10 @@ GitHub Pro or make this repository public`). These steps wait until it is public
   `Application.quitting` and has no setter; the scene-unload window is a frame stamp, and a test
   resuming after `UnloadSceneAsync` is already on a later frame. Assert from inside a probe's own
   `OnDestroy` instead — see `Tests/PlayMode/SceneUnloadTests.cs`.
-- **Distribution is OpenUPM.** It clones this repo at each `v*` tag and runs `npm pack` in the
-  package folder, so that folder's `.npmignore` decides what consumers receive — currently
+- **Distribution is one signed tarball.** `release.yml` runs `upm pack` in the package folder and
+  publishes that file to GitHub Releases, Verdaccio and OpenUPM; nothing downstream repacks it.
+  `upm pack` follows `.npmignore` and adds only `.attestation.p7m`, the signature — the workflow
+  checks that on every release. So that folder's `.npmignore` decides what consumers receive — currently
   everything except `Analyzers~/`, whose only consumer-relevant output is the committed DLL under
   `Runtime/`. Verify a change to it with `npm pack --dry-run` from the package folder. Unity needs
   a `.meta` beside every shipped asset, which is why the ignore file is a deny list rather than a
@@ -211,12 +218,13 @@ GitHub Pro or make this repository public`). These steps wait until it is public
 - **Two `Default.ruleset` copies exist on purpose.** Unity resolves rulesets per asmdef folder,
   and the single shareable `Default.ruleset` must sit in an `Assets` root that a UPM package does
   not have. They are generated rather than hand-synced — see Analyzer severities above.
-- **Three workflows, and two of them are disabled.** `analyzer.yml` is enabled and is the only
-  CI signal that can currently pass. `ci.yml` (the Unity job) and `openupm.yml` are
-  `disabled_manually`: the Unity runner exhausts its disk pulling the ~5 GB editor image and has
-  no `UNITY_LICENSE`, and OpenUPM returns `404 PackageNotFound` until the package is registered,
-  which needs the repo to be public. Re-enable with `gh workflow enable Unity` / `gh workflow
-  enable OpenUPM` — a switch, not a revert; the files are written as they will run.
+- **Three workflows, one of them disabled.** `analyzer.yml` runs on every push and PR.
+  `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) is `disabled_manually`: the Unity
+  runner exhausts its disk pulling the ~5 GB editor image and has no `UNITY_LICENSE`. Re-enable
+  with `gh workflow enable Unity` — a switch, not a revert; the file is written as it will run.
+  OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather than a disabled workflow,
+  because it returns `404 PackageNotFound` until the package is registered, which needs the repo
+  to be public.
 - **`ci.yml` holds the Unity job despite the name.** GitHub keys a workflow, and its disabled
   state, to the file path. Renaming it to `unity.yml` would register a new workflow that is
   enabled by default and would fail immediately. Rename when the job works.

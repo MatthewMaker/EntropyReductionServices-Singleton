@@ -301,7 +301,7 @@ note "committed $(git rev-parse --short HEAD) and tagged v$NEXT"
 if [ "$PUSH" -eq 1 ]; then
     step "Pushing"
     git push origin main --follow-tags
-    note "pushed. The OpenUPM workflow publishes on the tag — check it rather than assuming."
+    note "pushed. The Release workflow signs and publishes on the tag — check it rather than assuming."
 else
     printf '\nNot pushed. When ready:\n\n    git push origin main --follow-tags\n\n'
     command -v pbcopy >/dev/null && printf 'git push origin main --follow-tags' | pbcopy \

@@ -120,3 +120,6 @@ InitTestScene*.unity*
 
 # macOS
 .DS_Store
+
+# Signed packages from `upm pack`. Published by .github/workflows/release.yml, never committed.
+*.tgz
