@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.5.0]
+
 ### Fixed
 
 - **`IsAvailable` on the passive flavours no longer reports `true` while the slot is empty.** It
