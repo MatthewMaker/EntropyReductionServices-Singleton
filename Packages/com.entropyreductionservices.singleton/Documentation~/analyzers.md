@@ -213,6 +213,8 @@ to keep all of them.
     <Rule Id="ERS0003" Action="None" />
     <Rule Id="ERS0004" Action="None" />
     <Rule Id="ERS0005" Action="None" />
+    <Rule Id="ERS0006" Action="None" />
+    <Rule Id="ERS0007" Action="None" />
   </Rules>
 </RuleSet>
 ```

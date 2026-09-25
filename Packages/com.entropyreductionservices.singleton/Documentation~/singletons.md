@@ -182,7 +182,8 @@ paths, because "there is more than one of these" is useless without knowing wher
 itself in its own `Awake`, after that `Awake` has already run.
 
 **Shutdown** is detected from `Application.quitting`. From that point nothing is created, and
-`Instance` returns null with a single explanatory warning rather than one per call site.
+`Instance` hands back the destroyed component (see [The contract](#the-contract)) with a single
+explanatory warning rather than one per call site.
 
 **Domain reload**, whether from recompiling or entering play mode, bumps a session counter on the
 non-generic `SingletonRuntime`. Every generic singleton records the session its cached instance was
@@ -274,7 +275,7 @@ break in a build with these on. Don't match singletons by name.
 
 ## Enforcement
 
-Five Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
-covering the rules above that are checkable: the required `base.Awake()`, field caching, unguarded
-teardown access, construction-time access, and `Awake` declared without `override`. See
-[analyzers.md](analyzers.md).
+Seven Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
+covering the rules above that are checkable: the required `base.Awake()` and its position, field
+caching, unguarded teardown access, `?.` on a lazy `Instance`, construction-time access, and `Awake`
+declared without `override`. See [analyzers.md](analyzers.md).
