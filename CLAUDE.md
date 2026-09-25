@@ -13,8 +13,9 @@ that enforce their contract in *consuming* assemblies.
 
 ## Branching and releases
 
-**Trunk plus annotated tags.** Work on a short-lived branch off `main`, or directly on `main` for
-small fixes; merge fast-forward. No `develop`, no release branches.
+**Trunk plus annotated tags.** Work on a short-lived branch off `main`, rebase it onto `main`, and
+merge with a merge commit (`--no-ff`); small fixes go directly on `main`. No `develop`, no release
+branches. Linear history is deliberately not required, since it would forbid those merge commits.
 
 Release branches are deliberately not used: they exist so a team can stabilise a release while
 feature work continues elsewhere, and there is no parallel work here to stabilise against. If a
@@ -159,53 +160,34 @@ clone — git does not version `.git/hooks`:
 git config core.hooksPath .githooks
 ```
 
-## Going public
+## Repository settings
 
-The repo is private on a Free plan, where GitHub refuses rulesets and environments (`403 Upgrade to
-GitHub Pro or make this repository public`). These steps wait until it is public, in this order:
+The repo is public. These are configured on GitHub rather than in files, except the rulesets, whose
+definitions are committed under `.github/rulesets/` as a record:
 
-1. **Make the repository public.**
-2. **Apply the tag rulesets** committed under `.github/rulesets/`:
-   ```sh
-   for f in .github/rulesets/*.json; do
-     gh api -X POST repos/MatthewMaker/EntropyReductionServices-Singleton/rulesets --input "$f"
-   done
-   ```
-   - `release-tags-creation.json` — only repository admins may create a `v*` tag, since pushing
-     one triggers publication.
-   - `release-tags-immutable.json` — no one, admins included, may move or delete a `v*` tag. To do
-     so deliberately, set that ruleset to `disabled`, act, and re-enable it.
-   - `main-branch.json` — no one may force-push or delete `main`. Pull requests are not required;
-     trunk pushes still work.
+- **Rulesets.** `release-tags-creation.json`: only repository admins may create a `v*` tag, since
+  pushing one triggers publication. `release-tags-immutable.json`: no one, admins included, may
+  move or delete a `v*` tag; to do so deliberately, set that ruleset to `disabled`, act, and
+  re-enable it. `main-branch.json`: no one may force-push or delete `main`; pull requests are not
+  required, so trunk pushes still work. The two tag rulesets match `refs/tags/v*`, the same pattern
+  `release.yml` triggers on — change them together.
+- **`release` environment.** Deployable only from tags matching `v*`. Holds the secrets
+  `UPM_SERVICE_ACCOUNT_KEY_ID`, `UPM_SERVICE_ACCOUNT_KEY_SECRET` and `VERDACCIO_TOKEN`. The
+  rulesets control who can create a release tag; the environment controls which refs receive the
+  secrets.
+- **Immutable releases**, so a published release's tag and assets cannot be changed.
+- **Security:** secret scanning with push protection, Dependabot alerts, and private vulnerability
+  reporting, which `SECURITY.md` points reporters to.
+- **Actions:** every action must be pinned to a full-length commit SHA, and workflows on pull
+  requests from all external contributors need approval. The default `GITHUB_TOKEN` is read-only.
 
-   Both match `refs/tags/v*`, the same pattern `release.yml` triggers on. Change them
-   together.
-3. **Restrict the `release` environment** to tags matching `v*`. The environment and its secrets
-   (`UPM_SERVICE_ACCOUNT_KEY_ID`, `UPM_SERVICE_ACCOUNT_KEY_SECRET`, `VERDACCIO_TOKEN`) already
-   exist and work while private; only the deployment policy is unavailable, so until then any ref
-   can deploy to it. The rulesets control who can create a release tag; the environment controls
-   which refs receive the secrets.
-4. **Enable immutable releases** in the repository settings, so a published release's tag and
-   assets cannot be changed.
-5. **Turn on the security settings** GitHub offers free on public repos, all currently off:
-   ```sh
-   R=repos/MatthewMaker/EntropyReductionServices-Singleton
-   gh api -X PATCH $R -f 'security_and_analysis[secret_scanning][status]=enabled' \
-     -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled'
-   gh api -X PUT $R/vulnerability-alerts            # Dependabot alerts
-   gh api -X PUT $R/private-vulnerability-reporting # SECURITY.md points reporters here
-   ```
-   Then, under Settings → Actions → General: **require actions to be pinned to a full-length
-   commit SHA** (every workflow already is), and **require approval for fork pull request
-   workflows from all outside collaborators**. Optionally add yourself as a required reviewer on
-   the `release` environment, so every signing run waits for approval.
-6. **Register the package with OpenUPM** at https://openupm.com/packages/add/, then edit the
-   generated PR's YAML to add `trackingMode: githubRelease`, so it publishes the signed Release
-   asset rather than packing the tag itself, and `minVersion: 2.6.0`. No earlier tag has a signed
-   Release asset: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite commit that is not
-   in this repository, so it was not backfilled. Push no `v*` tag until that PR is merged, or
-   OpenUPM's default tracker can publish an unsigned build first. Once the package page exists,
-   `gh variable set OPENUPM_ENABLED --body true` turns on the `openupm` job in `release.yml`.
+**Still to do: register the package with OpenUPM** at https://openupm.com/packages/add/, then edit
+the generated PR's YAML to add `trackingMode: githubRelease`, so it publishes the signed Release
+asset rather than packing the tag itself, and `minVersion: 2.6.0`. No earlier tag has a signed
+Release asset: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite commit that is not in
+this repository, so it was not backfilled. Push no `v*` tag until that PR is merged, or OpenUPM's
+default tracker can publish an unsigned build first. Once the package page exists,
+`gh variable set OPENUPM_ENABLED --body true` turns on the `openupm` job in `release.yml`.
 
 ## Non-obvious repo facts
 
@@ -241,18 +223,18 @@ GitHub Pro or make this repository public`). These steps wait until it is public
 - **Two `Default.ruleset` copies exist on purpose.** Unity resolves rulesets per asmdef folder,
   and the single shareable `Default.ruleset` must sit in an `Assets` root that a UPM package does
   not have. They are generated rather than hand-synced — see Analyzer severities above.
-- **Three workflows, one of them disabled.** `analyzer.yml` runs on every push and PR.
-  `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) is `disabled_manually`: the Unity
-  runner exhausts its disk pulling the ~5 GB editor image and has no `UNITY_LICENSE`. Re-enable
-  with `gh workflow enable Unity` — a switch, not a revert; the file is written as it will run.
-  OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather than a disabled workflow,
-  because it returns `404 PackageNotFound` until the package is registered, which needs the repo
-  to be public.
+- **Three workflows, one of them disabled.** `analyzer.yml` runs on pushes to `main`, `v*` tags,
+  pull requests and manual dispatch. `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) is
+  `disabled_manually`: the Unity runner exhausts its disk pulling the ~5 GB editor image and has no
+  `UNITY_LICENSE`. Re-enable with `gh workflow enable Unity` — a switch, not a revert; the file is
+  written as it will run. OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather than
+  a disabled workflow, because it returns `404 PackageNotFound` until the package is registered.
+  `.github/dependabot.yml` opens a weekly grouped PR moving the SHA-pinned actions forward.
 - **`ci.yml` holds the Unity job despite the name.** GitHub keys a workflow, and its disabled
   state, to the file path. Renaming it to `unity.yml` would register a new workflow that is
-  enabled by default and would fail immediately. Rename when the job works.
-- **`analyzer.yml`** runs on every push and PR, needs no Unity, and is fast. The `unity` job runs only on
-  `main`, tags and manual dispatch, because it pulls a ~5 GB editor image and dominates the
-  workflow's runtime — a poor trade on every pull request. It uses the `base` editor image rather
-  than `il2cpp`, which exhausted the runner's disk, and targets one version matching the
-  `package.json` floor.
+  enabled by default and would fail immediately. Rename when the job works. Its job runs only on
+  `main`, tags and manual dispatch, because it pulls a ~5 GB editor image — a poor trade on every
+  pull request. It uses the `base` editor image rather than `il2cpp`, which exhausted the runner's
+  disk, and targets one version, 6000.3.24f1, matching the `package.json` floor. Because it is
+  disabled, that floor is untested: the local release gate runs the project's editor version.
+- **`analyzer.yml`** needs no Unity and is fast, so it is the CI signal on every pull request.

@@ -16,16 +16,18 @@ using EntropyReductionServices.Singletons;
 
 public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
 {
+    private AudioSource _source;
+
     protected override void Awake()
     {
         base.Awake();                       // claims the slot, destroys duplicates
-        _mixer = GetComponent<AudioMixer>();
+        _source = GetComponent<AudioSource>();
     }
 }
 ```
 
 ```csharp
-AudioBus.Instance.Play(clip);               // non-null the whole time the app is running
+AudioBus.Instance.Play(clip);               // a live singleton exists while the app is running
 
 private void OnDestroy()
 {
@@ -37,18 +39,22 @@ private void OnDestroy()
 
 ## The contract
 
-> `Instance` is non-null for the entire time the application is running. It is null only once
-> shutdown has begun.
+> A live singleton exists for the entire time the application is running. `Instance` never returns
+> null once the singleton has existed: during teardown it hands back the destroyed component rather
+> than creating a replacement.
 
-The exception is not negotiable — recreating a singleton during teardown leaks objects into an
-unloading scene and, on device, can touch XR or audio subsystems that have already shut down. So
-teardown code asks first, via `IsAvailable` or `TryGetInstance` — not `?.`, which tests the
-reference rather than Unity's `==` overload and so is not a guard here. Everywhere else,
-dereference directly.
+Not recreating is not negotiable — recreating a singleton during teardown leaks objects into an
+unloading scene and, on device, can touch XR or audio subsystems that have already shut down. The
+destroyed component is a live C# object, so managed calls on it are safe, but anything touching
+its GameObject throws. So teardown code asks first, via `IsAvailable` or `TryGetInstance` — not
+`?.`, which tests the reference rather than Unity's `==` overload and so is not a guard here.
+Everywhere else, dereference directly.
 
-Anything other than shutdown that would produce a null throws `MissingSingletonException` naming
-the type and the reason, so a configuration mistake fails where you made it rather than as a
-`NullReferenceException` in unrelated code forty frames later.
+On the auto-creating flavors, anything other than teardown that leaves `Instance` unresolvable
+throws `MissingSingletonException` naming the type and the reason, so a configuration mistake fails
+where you made it rather than as a `NullReferenceException` in unrelated code forty frames later.
+Passive flavors never create, so their `Instance` is null until an authored instance claims the
+slot.
 
 ## Four flavors
 
@@ -76,6 +82,8 @@ usages, side effects and known gaps. Read it before relying on any of them.
 
 ### OpenUPM
 
+The OpenUPM listing is pending; the first version published there will be 2.6.0. Once it is live:
+
 ```zsh
 openupm add com.entropyreductionservices.singleton
 ```
@@ -92,18 +100,18 @@ Or add the scoped registry to `Packages/manifest.json` directly:
     }
   ],
   "dependencies": {
-    "com.entropyreductionservices.singleton": "1.0.0"
+    "com.entropyreductionservices.singleton": "2.6.0"
   }
 }
 ```
 
 ### Tarball
 
-Every release attaches a `.tgz`. Drop it in or beside your project and reference it by relative
-path:
+Every release from 2.6.0 attaches a signed `.tgz` to its GitHub Release. Drop it in or beside
+your project and reference it by relative path:
 
 ```json
-"com.entropyreductionservices.singleton": "file:../Packages/com.entropyreductionservices.singleton-1.0.0.tgz"
+"com.entropyreductionservices.singleton": "file:../Packages/com.entropyreductionservices.singleton-2.6.0.tgz"
 ```
 
 Both routes give a versioned, resolvable dependency that upgrades and rolls back cleanly.
@@ -140,10 +148,14 @@ Deliberately out of scope. Issues requesting these will be closed with a pointer
 
 ## Compatibility
 
-Unity 6.3 LTS (6000.3) and newer; CI runs the test suites on 6000.3.24f1. 6.3 is the floor because
-it is the oldest Unity still under support — 6.0 LTS ended in October 2026 and 2022 LTS in May
-2025. Older editors are likely to work, since nothing here uses an API newer than 2021.3, but
-they are not tested and so are not claimed.
+Unity 6.3 LTS (6000.3) and newer. 6.3 is the floor because it is the oldest Unity still under
+support once 6.0 LTS ends in October 2026; 2022 LTS ended in May 2025. Older editors are likely to
+work, since nothing here uses an API newer than 2021.3, but they are not tested and so are not
+claimed.
+
+The floor itself has not yet been tested either. The test suites run locally on the project's
+editor, currently 6000.5.5f1, as the release gate; the CI job that would run them on 6000.3.24f1 is
+disabled until it has a runner with enough disk and a Unity licence.
 
 The analyzer targets `netstandard2.0` against Microsoft.CodeAnalysis.CSharp 3.8. Unity 6
 documentation specifies Roslyn 4.3, but an analyzer built against older Roslyn loads on newer

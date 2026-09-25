@@ -16,10 +16,12 @@ using EntropyReductionServices.Singletons;
 
 public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
 {
+    private AudioSource _source;
+
     protected override void Awake()
     {
         base.Awake();                       // claims the slot, destroys duplicates
-        _mixer = GetComponent<AudioMixer>();
+        _source = GetComponent<AudioSource>();
     }
 }
 ```
