@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The two generated-file checks need only python3, which ubuntu-latest preinstalls.
+      # The consistency checks need only python3 and cmp, which ubuntu-latest preinstalls.
       # They run before setup-dotnet so the cheapest failures do not wait on an SDK download.
       - name: Analyzer severities match .editorconfig
         # The rulesets are generated from .editorconfig. Checked here as well as in the
@@ -31,6 +31,11 @@ jobs:
         # analyzer release notes are checked against it. The committed DLL's own version is
         # checked by the test suite below, which needs a runtime to read it.
         run: python3 scripts/sync-version.py --check
+
+      - name: LICENSE copies are identical
+        # The root copy is what GitHub detects; the package copy is what ships. Checked in the
+        # pre-commit hook too.
+        run: cmp LICENSE Packages/com.entropyreductionservices.singleton/LICENSE
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
