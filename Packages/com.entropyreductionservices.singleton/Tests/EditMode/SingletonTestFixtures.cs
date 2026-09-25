@@ -153,6 +153,7 @@ namespace EntropyReductionServices.Singletons.Tests
     [ExecuteAlways] internal class PassiveClaims : MonoBehaviourSingletonPassive<PassiveClaims> { }
     [ExecuteAlways] internal class PassiveDedupes : MonoBehaviourSingletonPassive<PassiveDedupes> { }
     [ExecuteAlways] internal class PassiveReleases : MonoBehaviourSingletonPassive<PassiveReleases> { }
+    [ExecuteAlways] internal class PassiveAvailability : MonoBehaviourSingletonPassive<PassiveAvailability> { }
 
     // --- Shutdown tombstone (LastKnown) --------------------------------------------------------
 

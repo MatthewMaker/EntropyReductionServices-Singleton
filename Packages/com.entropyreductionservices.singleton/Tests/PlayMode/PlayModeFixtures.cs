@@ -148,4 +148,5 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }
+    internal class PassiveAvailable : MonoBehaviourSingletonPassive<PassiveAvailable> { }
 }

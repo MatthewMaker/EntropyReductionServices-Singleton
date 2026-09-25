@@ -31,7 +31,6 @@ namespace EntropyReductionServices.Singletons
     public abstract class MonoBehaviourSingletonBase<T> : UnityEngine.MonoBehaviour
         where T : MonoBehaviourSingletonBase<T>
     {
-        public static bool IsAvailable { get { return true; } }
         public static bool TryGetInstance(out T instance) { instance = null; return false; }
         protected virtual void OnDestroy() { }
     }
@@ -39,6 +38,7 @@ namespace EntropyReductionServices.Singletons
     public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingleton<T>
     {
+        public static bool IsAvailable { get { return true; } }
         public static T Instance { get { return null; } }
     }
 
@@ -51,6 +51,7 @@ namespace EntropyReductionServices.Singletons
     public abstract class MonoBehaviourSingletonPassive<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingletonPassive<T>
     {
+        public static bool IsAvailable { get { return true; } }
         public static T Instance { get { return null; } }
         protected virtual void Awake() { }
     }

@@ -407,33 +407,6 @@ namespace EntropyReductionServices.Singletons
         private static bool s_warnedUnavailable;
 
         /// <summary>
-        /// True when Instance can currently hand back a live object.
-        ///
-        /// This is the single predicate behind the contract: a live singleton exists for the
-        /// entire time the application is running, and none exists during teardown — application
-        /// quit, or the frame in which a scene unload destroyed it. Code that runs then —
-        /// OnDestroy, OnDisable, OnApplicationQuit, coroutine cleanup, pooled object return paths
-        /// — should test this or use TryGetInstance. Code that runs during normal operation does
-        /// not need to check anything.
-        ///
-        /// Note that this is stricter than Instance, which during shutdown hands back the
-        /// destroyed component so that a bare dereference does not throw. IsAvailable answers
-        /// "is there a live one", and goes false while Instance is still returning a reference.
-        /// </summary>
-        public static bool IsAvailable
-        {
-            get
-            {
-                // IsTearingDown, not IsQuitting: the unconditional "true" below is only honest
-                // because Instance would create one on demand, and during an unload frame it
-                // will not. Reporting availability there would be a lie the caller acts on.
-                if (SingletonRuntime.IsTearingDown) return Current != null;
-                if (Application.isPlaying) return true;
-                return EditModePolicy == SingletonEditModePolicy.CreateTransient || Current != null;
-            }
-        }
-
-        /// <summary>
         /// Notes, once per session, that Instance was read during shutdown. One line at app exit,
         /// not a per-call-site log.
         /// </summary>
@@ -863,6 +836,33 @@ namespace EntropyReductionServices.Singletons
         where T : MonoBehaviourSingleton<T>
     {
         /// <summary>
+        /// True when Instance can currently hand back a live object.
+        ///
+        /// This is the single predicate behind the contract: a live singleton exists for the
+        /// entire time the application is running, and none exists during teardown — application
+        /// quit, or the frame in which a scene unload destroyed it. Code that runs then —
+        /// OnDestroy, OnDisable, OnApplicationQuit, coroutine cleanup, pooled object return paths
+        /// — should test this or use TryGetInstance. Code that runs during normal operation does
+        /// not need to check anything.
+        ///
+        /// Note that this is stricter than Instance, which during shutdown hands back the
+        /// destroyed component so that a bare dereference does not throw. IsAvailable answers
+        /// "is there a live one", and goes false while Instance is still returning a reference.
+        /// </summary>
+        public static bool IsAvailable
+        {
+            get
+            {
+                // IsTearingDown, not IsQuitting: the unconditional "true" below is only honest
+                // because Instance would create one on demand, and during an unload frame it
+                // will not. Reporting availability there would be a lie the caller acts on.
+                if (SingletonRuntime.IsTearingDown) return Current != null;
+                if (Application.isPlaying) return true;
+                return EditModePolicy == SingletonEditModePolicy.CreateTransient || Current != null;
+            }
+        }
+
+        /// <summary>
         /// The singleton, resolved from the loaded scenes, then Resources, then a new GameObject.
         ///
         /// CONTRACT: a live singleton exists for the entire time the application is running.
@@ -941,6 +941,13 @@ namespace EntropyReductionServices.Singletons
     public abstract class MonoBehaviourSingletonPassive<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingletonPassive<T>
     {
+        /// <summary>
+        /// True when Instance can currently hand back a live object: something has claimed the
+        /// slot and it has not been destroyed. Unlike the lazy flavour there is no play-mode or
+        /// edit-policy shortcut, because a passive Instance never creates one on demand.
+        /// </summary>
+        public static bool IsAvailable => Current != null;
+
         public static T Instance
         {
             get

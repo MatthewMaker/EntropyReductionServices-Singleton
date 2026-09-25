@@ -88,6 +88,18 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
 
         [Test]
+        public void PassiveIsAvailable_DuringPlay_IsFalseUntilSomethingClaimsTheSlot()
+        {
+            // The play-mode shortcut above is only honest because Instance creates on demand. A
+            // passive Instance never does, so IsAvailable must track the slot instead.
+            Assert.IsFalse(PassiveAvailable.IsAvailable, "nothing has claimed the slot");
+            Assert.IsNull(PassiveAvailable.Instance);
+
+            Probes.AuthorIn<PassiveAvailable>(_scene, "Probe");
+            Assert.IsTrue(PassiveAvailable.IsAvailable, "and true once Awake has claimed it");
+        }
+
+        [Test]
         public void FramePromoted_RecordsTheFrameTheSlotWasClaimed()
         {
             var probe = Probes.AuthorIn<PersistentFrame>(_scene, "Probe");

@@ -34,6 +34,17 @@ namespace EntropyReductionServices.Singletons.Tests
         }
 
         [Test]
+        public void IsAvailable_IsFalseUntilSomethingClaimsTheSlot()
+        {
+            // The default edit-mode policy is CreateTransient, which lets a lazy Instance create
+            // on demand. A passive Instance never does, so the policy must not make IsAvailable true.
+            Assert.IsFalse(PassiveAvailability.IsAvailable, "nothing has claimed the slot");
+
+            Fixtures.Author<PassiveAvailability>("Authored PassiveAvailability");
+            Assert.IsTrue(PassiveAvailability.IsAvailable, "and true once Awake has claimed it");
+        }
+
+        [Test]
         public void Awake_ClaimsTheSlot()
         {
             var authored = Fixtures.Author<PassiveClaims>("Authored PassiveClaims");

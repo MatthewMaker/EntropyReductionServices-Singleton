@@ -6,9 +6,15 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- No code changes from 2.4.0.
+- **`IsAvailable` on the passive flavours no longer reports `true` while the slot is empty.** It
+  was declared once on the shared base, with a shortcut — `true` whenever playing, or in edit mode
+  under `CreateTransient` — that only holds for a flavour whose `Instance` creates on demand. A
+  passive `Instance` never does, so `IsAvailable` could be `true` while `Instance` was null. Each
+  flavour now declares its own: the lazy one is unchanged, the passive one is true exactly when
+  something has claimed the slot. `IsAvailable` is consequently no longer a member of
+  `MonoBehaviourSingletonBase<T>`; calls through a concrete singleton type are unaffected.
 
 ## [2.4.0]
 
