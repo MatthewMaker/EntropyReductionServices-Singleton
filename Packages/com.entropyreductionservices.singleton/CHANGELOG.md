@@ -6,6 +6,13 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The package compiles on Unity 6000.3, its declared minimum.** Scene lookup called the
+  `FindObjectsByType<T>(FindObjectsInactive)` overload, which only exists from 6000.4, so the
+  runtime assembly failed to compile on 6000.3 with CS1503. It now uses the overload each editor
+  version provides.
+
 ## [2.5.0]
 
 ### Fixed

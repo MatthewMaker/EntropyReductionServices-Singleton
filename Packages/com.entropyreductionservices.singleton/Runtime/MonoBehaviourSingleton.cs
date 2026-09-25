@@ -455,7 +455,14 @@ namespace EntropyReductionServices.Singletons
 
             if (Current != null) return;
 
+            // 6000.4 added the overload without FindObjectsSortMode and made the ones taking it
+            // obsolete; 6000.3, the supported floor, has only those. Order does not matter here:
+            // several matches go to ResolveDuplicates, which orders them itself.
+#if UNITY_6000_4_OR_NEWER
             var objs = FindObjectsByType<T>(FindObjectsInactive.Exclude);
+#else
+            var objs = FindObjectsByType<T>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+#endif
 
 #if UNITY_EDITOR
             // The find APIs skip HideFlags.DontSave, and the editor reloads the domain on every
