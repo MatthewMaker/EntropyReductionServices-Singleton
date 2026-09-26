@@ -148,9 +148,10 @@ Deliberately out of scope. Issues requesting these will be closed with a pointer
 - **Dependency injection or a service locator.** Use [VContainer](https://github.com/hadashiA/VContainer)
   or [Reflex](https://github.com/gustavopsantos/Reflex). A half-built registry alongside a real
   container is worse than either alone.
-- **Initialization order between singletons.** Lazy resolution cannot give you deterministic
-  construction order. If order matters, write an explicit bootstrapper — that is the right answer,
-  not a limitation to work around.
+- **Initialization order beyond what references imply.** Lazy resolution already builds a
+  dependency before its first user. It cannot order side effects that no reference expresses,
+  break a cycle between two `Awake`s, or warm singletons up at a moment you choose. For those,
+  touch the `Instance`s you need from an explicit bootstrapper.
 - **ScriptableObject config singletons.** A different correctness problem, chiefly that in the
   editor `Instance` *is* the asset and runtime mutation writes to disk. Planned as a separate
   assembly with its own contract rather than bolted onto this one.

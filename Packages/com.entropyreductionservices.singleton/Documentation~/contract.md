@@ -138,5 +138,7 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   run by then.
 - The scene-unload window only opens if a singleton is itself destroyed by the unload. If none was,
   the slot is still valid and there was nothing to guard against.
-- Not a substitute for dependency injection or explicit init order. If construction order between
-  singletons matters, this package will not give it to you.
+- Not a substitute for dependency injection or explicit init order. Lazy resolution builds a
+  dependency before its first user, but it cannot order side effects that no reference expresses,
+  break a cycle between two `Awake`s, or warm singletons up at a moment you choose. For those,
+  touch the `Instance`s you need from an explicit bootstrapper.
