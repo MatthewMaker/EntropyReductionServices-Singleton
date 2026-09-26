@@ -1,6 +1,6 @@
 # Singleton analyzers
 
-Seven rules enforcing [the contract](contract.md). They ship
+Ten rules enforcing [the contract](contract.md). They ship
 as `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` and apply to this package's assembly **and to
 every assembly that references it** — that scoping is Unity's documented behaviour for an analyzer
 sitting in or under a folder containing an `.asmdef`, and it is why the DLL lives beside the
@@ -10,12 +10,15 @@ manifest entries, nothing copied into their `Assets` folder.
 | ID | Default | Rule |
 |----|---------|------|
 | ERS0001 | Warning | Singleton message override must call its base implementation |
-| ERS0002 | Warning | Do not cache a singleton `Instance` in a field |
+| ERS0002 | Warning | Do not cache a singleton `Instance` in a field that can outlive it |
 | ERS0003 | Warning | Guard teardown access to a singleton's Unity members |
 | ERS0004 | Warning | Do not access a singleton during MonoBehaviour construction |
 | ERS0005 | Warning | Singleton message must be declared with `override` |
 | ERS0006 | Warning | Null-conditional access on a lazy singleton's `Instance` is misleading |
 | ERS0007 | Warning | Singleton base call is in the wrong position |
+| ERS0008 | Warning | Do not read a lazy singleton's `Instance` from a serialization callback |
+| ERS0009 | Warning | Do not set `hideFlags` on a singleton |
+| ERS0010 | Warning | Do not read a passive singleton's `Instance` from `Awake` or `OnEnable` |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -45,12 +48,27 @@ precision.
 ## ers0002 — do not cache Instance in a field
 
 `Instance` discards references captured in a previous play session and collapses Unity's
-destroyed-object wrapper into a real null. A field copy does neither, so it survives domain reload
-and scene changes as a reference to an object that no longer exists.
+destroyed-object wrapper into a real null. A field copy does neither, so once the singleton is
+replaced the field points at an object that no longer exists. The rule reports a field that can
+outlive the singleton it holds:
 
-Locals are not flagged — a value used within one method call is the intended usage:
+- **a static field** — with domain reload disabled it carries into the next play session;
+- **a field on anything that is not a `Component`** — a plain class or a `ScriptableObject` is not
+  tied to a scene, so nothing ends its lifetime alongside the singleton's;
+- **a serialized field** (`[SerializeField]`, or public without `[NonSerialized]`) — in edit mode it
+  can write a reference to a transient, never-saved singleton into the scene;
+- **a field holding a singleton that is not persistent** — `MonoBehaviourSingleton<T>` and
+  `MonoBehaviourSingletonPassive<T>` die with their scene, and the field keeps the dead object.
+
+What remains is not reported: a private, non-serialized field on a `Component`, holding a
+`MonoBehaviourSingletonPersistent<T>` or `MonoBehaviourSingletonPassivePersistent<T>`. The holder
+dies with its scene or at quit, and the singleton outlives both. Locals are not reported either:
 
 ```csharp
+private AudioBus _bus;             // AudioBus is persistent: fine
+
+private void Start()  { _bus = AudioBus.Instance; }
+
 private void Update()
 {
     var bus = AudioBus.Instance;   // fine
@@ -179,6 +197,75 @@ Only a base call that is a whole statement directly in the method body is consid
 in an `if`, a loop or a local function is left alone — ERS0001 deliberately accepts those, and
 their position is not a simple ordering question. An expression-bodied override is first and last
 at once, so it is never reported.
+
+## ers0008 — no lazy `Instance` in serialization callbacks
+
+`OnValidate`, `OnBeforeSerialize` and `OnAfterDeserialize` run on Unity's serialization path, where
+object lookup and creation are unsupported and can throw. The first read of a lazy singleton's
+`Instance` may do both:
+
+```csharp
+private void OnValidate()
+{
+    AudioBus.Instance.SetVolume(_volume);   // ERS0008
+}
+```
+
+Defer the work out of the callback, or move it to `Awake`, `OnEnable` or `Start`:
+
+```csharp
+private void OnValidate()
+{
+    UnityEditor.EditorApplication.delayCall += () => AudioBus.Instance.SetVolume(_volume);
+}
+```
+
+`OnValidate` is reported on any `UnityEngine.Object`, the other two on any type implementing
+`ISerializationCallbackReceiver`. A read inside a lambda, anonymous method or local function is
+not reported, since that is how the deferral is written and the analyzer cannot tell a deferred
+delegate from one invoked on the spot. The passive flavours are not reported: their `Instance`
+reads the slot and neither searches nor creates.
+
+## ers0009 — do not set `hideFlags` on a singleton
+
+The package owns these flags. Unity's find APIs skip objects flagged `DontSave`, so setting it on a
+scene-authored singleton hides it from `Instance`, which then creates a second one. Clearing it on
+an edit-mode transient lets that transient be saved into the open scene or prefab.
+
+```csharp
+hideFlags = HideFlags.DontSave;                          // ERS0009, inside the singleton
+AudioBus.Instance.gameObject.hideFlags = HideFlags.None; // ERS0009, from anywhere
+```
+
+Plain and compound assignments (`|=`, `&=`, `^=`) are reported, on the component and on its
+`gameObject`, when spelled directly. A `GameObject` reached through a local variable or a field is
+not followed. Reading `hideFlags` is fine.
+
+## ers0010 — no passive `Instance` in `Awake` or `OnEnable`
+
+A passive singleton's `Instance` is null until the singleton's own `Awake` claims the slot. Unity
+does not order `Awake` across objects, and during a scene load it runs each object's `OnEnable`
+straight after that object's `Awake`, before the next object wakes. So a read from another
+object's `Awake` or `OnEnable` sees null whenever that object happens to wake first — and which
+one does can differ between the editor and a build:
+
+```csharp
+private void OnEnable()
+{
+    Scoreboard.Instance.Register(this);   // ERS0010 — Scoreboard may not have woken yet
+}
+```
+
+Read it from `Start`, which runs after every object in the scene has woken:
+
+```csharp
+private void Start() => Scoreboard.Instance.Register(this);
+```
+
+A null check is still reported: it does not fix the race, only turns a throw into silently skipped
+work. `TryGetInstance` and `IsAvailable` are not reported, since they are not `Instance` reads.
+Neither are the singleton's own `Awake` (after `base.Awake()`, the slot is already its own), a lazy
+`Instance` (which finds or creates the singleton), or a read inside a lambda or local function.
 
 ## Retuning severities
 

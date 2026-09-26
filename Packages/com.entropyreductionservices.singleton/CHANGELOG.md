@@ -6,6 +6,22 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **ERS0008** reports a lazy singleton's `Instance` read from `OnValidate`, `OnBeforeSerialize` or
+  `OnAfterDeserialize`, where the search and creation it may perform are unsupported.
+- **ERS0009** reports an assignment to `hideFlags` on a singleton or its `GameObject`, which hides
+  it from the scene lookup or lets an edit-mode transient be saved.
+- **ERS0010** reports a passive singleton's `Instance` read from another `MonoBehaviour`'s `Awake`
+  or `OnEnable`. Neither is ordered after the singleton's own `Awake`, which fills the slot.
+
+### Changed
+
+- **ERS0002 reports only fields that can outlive the singleton they hold**: static fields,
+  serialized fields, fields on anything that is not a `Component`, and fields holding a singleton
+  that is not persistent. A private, non-serialized field on a `Component` holding a persistent
+  singleton is no longer reported. The message now says which of these applies.
+
 ### Fixed
 
 - **The package compiles on Unity 6000.3, its declared minimum.** Scene lookup called the

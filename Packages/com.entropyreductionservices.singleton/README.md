@@ -56,13 +56,14 @@ anything and suit objects that must be authored, carrying inspector state or sce
 
 ## Analyzers
 
-Seven rules ship as a precompiled analyzer and apply automatically to any assembly referencing
+Ten rules ship as a precompiled analyzer and apply automatically to any assembly referencing
 this package — no setup, no asset labels, nothing copied into `Assets`. They catch the mistakes
 the compiler cannot: a missing `base.Awake()`, caching `Instance` in a field, unguarded teardown
 access, construction-time access, `Awake` declared without `override`, a pointless `?.` on a lazy
-`Instance`, and a base call that runs in the wrong order.
+`Instance`, a base call that runs in the wrong order, access from a serialization callback, a
+passive `Instance` read from `Awake` or `OnEnable`, and `hideFlags` set on a singleton.
 
-All seven ship as **warnings**, never errors, because they arrive with your first reference to the
+All ten ship as **warnings**, never errors, because they arrive with your first reference to the
 package rather than by opt-in. Retune or switch any of them off with a `Default.ruleset` in your
 `Assets` root — `<Rule Id="ERS0003" Action="None" />` disables one outright. See
 [analyzers.md](Documentation~/analyzers.md#turning-them-off).
@@ -73,7 +74,7 @@ package rather than by opt-in. Retune or switch any of them off with a `Default.
   semantics, constraints on your subclass, forbidden usages, known gaps.
 - [singletons.md](Documentation~/singletons.md) — why the implementation is shaped this way, and
   how to choose a flavour.
-- [analyzers.md](Documentation~/analyzers.md) — the seven rules, and how to change their severity.
+- [analyzers.md](Documentation~/analyzers.md) — the ten rules, and how to change their severity.
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## Compatibility

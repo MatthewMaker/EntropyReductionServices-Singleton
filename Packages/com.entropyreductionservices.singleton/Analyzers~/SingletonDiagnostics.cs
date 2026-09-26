@@ -56,19 +56,24 @@ namespace EntropyReductionServices.Analyzers
                          "shows up at runtime.");
 
         /// <summary>
-        /// ERS0002 — storing Instance in a field. Bypasses the session guard and the fake-null
-        /// collapse, which are the two mechanisms that make the accessor safe.
+        /// ERS0002 — storing Instance in a field that can outlive the singleton. Bypasses the
+        /// session guard and the fake-null collapse, which are the two mechanisms that make the
+        /// accessor safe. A private, non-serialized field on a Component holding a persistent
+        /// singleton cannot outlive it, and is not reported.
         /// </summary>
         public static readonly DiagnosticDescriptor CachedInstance = Rule(
             id: "ERS0002",
             title: "Do not cache a singleton Instance in a field",
-            messageFormat: "'{0}' stores '{1}.Instance' in a field; read the property at the point " +
+            messageFormat: "'{0}' stores '{1}.Instance', and {2}; read the property at the point " +
                            "of use instead",
             description: "The Instance accessor discards references captured in a previous play " +
                          "session and collapses Unity's destroyed-object wrapper into a real null. " +
-                         "A field copy does neither, so it survives domain reload and scene " +
-                         "changes as a reference to an object that no longer exists. A local " +
-                         "variable inside a single method is fine.");
+                         "A field copy does neither, so once the singleton is replaced it points " +
+                         "at an object that no longer exists. Reported for static fields, fields on " +
+                         "anything that is not a Component, serialized fields, and fields holding " +
+                         "a singleton that is not persistent. A private, non-serialized field on a " +
+                         "Component holding a persistent singleton cannot outlive it and is not " +
+                         "reported, and neither is a local variable.");
 
         /// <summary>
         /// ERS0003 — dereferencing Instance during teardown, where the contract allows null.
@@ -151,6 +156,61 @@ namespace EntropyReductionServices.Analyzers
                          "operator therefore never does what it appears to do on this flavour. " +
                          "Passive singletons are a different case and are not reported: their " +
                          "Instance is null until a component's Awake claims the slot.");
+
+        /// <summary>
+        /// ERS0008 — a lazy singleton's Instance read from OnValidate or a serialization callback.
+        /// A first read may search the scene and create a GameObject, and Unity does not support
+        /// either while it is (de)serializing. Passive flavours are not reported: their Instance
+        /// only reads the slot.
+        /// </summary>
+        public static readonly DiagnosticDescriptor SerializationCallbackAccess = Rule(
+            id: "ERS0008",
+            title: "Do not read a lazy singleton's Instance from a serialization callback",
+            messageFormat: "'{0}.{1}' reads '{2}.Instance', which may search the scene or create a " +
+                           "GameObject; Unity does not support that during '{1}'",
+            description: "OnValidate, OnBeforeSerialize and OnAfterDeserialize run on Unity's " +
+                         "serialization path, where object lookup and creation are unsupported " +
+                         "and can throw. A lazy singleton's Instance does both on first read. " +
+                         "Defer the access — for example to EditorApplication.delayCall inside " +
+                         "OnValidate — or read it from Awake, OnEnable or Start. Access inside a " +
+                         "lambda or local function is not reported, since that is how the " +
+                         "deferral is usually written.");
+
+        /// <summary>
+        /// ERS0009 — assigning hideFlags on a singleton or on its GameObject. The scene lookup
+        /// skips DontSave objects, and edit-mode transients rely on DontSave to stay out of the
+        /// saved scene, so the package owns these flags.
+        /// </summary>
+        public static readonly DiagnosticDescriptor HideFlagsAssignment = Rule(
+            id: "ERS0009",
+            title: "Do not set hideFlags on a singleton",
+            messageFormat: "'{0}' sets hideFlags on {1}; the singleton's scene lookup and edit-mode " +
+                           "cleanup depend on them",
+            description: "Unity's find APIs skip objects flagged DontSave, so setting it on a " +
+                         "scene-authored singleton hides it from Instance, which then creates a " +
+                         "second one. Clearing it on an edit-mode transient lets that transient " +
+                         "be saved into the open scene or prefab. The rule reports writes to " +
+                         "hideFlags on the singleton component and on its gameObject, spelled " +
+                         "directly; a GameObject reached through a local variable is not tracked.");
+
+        /// <summary>
+        /// ERS0010 — a passive singleton's Instance read from another MonoBehaviour's Awake or
+        /// OnEnable. The slot is filled by the singleton's own Awake, and nothing orders that
+        /// before the reader's Awake — or, during a scene load, before the reader's OnEnable.
+        /// </summary>
+        public static readonly DiagnosticDescriptor PassiveWakeRace = Rule(
+            id: "ERS0010",
+            title: "Do not read a passive singleton's Instance from Awake or OnEnable",
+            messageFormat: "'{0}.{1}' reads '{2}.Instance', which is null until '{2}' has run its own " +
+                           "Awake; that order is not guaranteed. Read it from Start",
+            description: "A passive singleton's Instance is filled by that singleton's Awake. Unity " +
+                         "does not order Awake across objects, and during a scene load it runs " +
+                         "each object's OnEnable straight after that object's Awake, before the " +
+                         "next object wakes. A read from another object's Awake or OnEnable " +
+                         "therefore sees null whenever it happens to run first, which can differ " +
+                         "between the editor and a build. Start runs after every object in the " +
+                         "scene has woken. A null check does not fix the race; it turns the " +
+                         "failure into silently skipped work.");
 
         /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which

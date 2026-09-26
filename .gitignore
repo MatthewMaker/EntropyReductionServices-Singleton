@@ -118,6 +118,10 @@ InitTestScene*.unity*
 # checkout; the template above only covers Visual Studio proper (.vs/).
 .vscode/
 
+# JetBrains IDE settings (Rider, IntelliJ). Personal to each checkout, and created wherever the
+# IDE is pointed, not only at the root.
+.idea/
+
 # macOS
 .DS_Store
 

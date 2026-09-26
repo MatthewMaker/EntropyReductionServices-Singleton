@@ -147,20 +147,24 @@ Anything *other* than teardown that would produce a null throws `MissingSingleto
 instead, naming the type and the reason. A configuration mistake should fail where you made it, not
 as a `NullReferenceException` in unrelated code forty frames later.
 
-### Why not cache it
+### When not to cache it
 
 ```csharp
-private AudioBus _bus;                       // don't
-private void Start() => _bus = AudioBus.Instance;
+private static AudioBus s_bus;               // don't
+private void Start() => s_bus = AudioBus.Instance;
 ```
 
 Reading `Instance` does two things a field copy cannot. It discards an instance captured in a
 previous play session, which matters whenever domain reload is off. And while the application is
 running it collapses Unity's "fake null" — the managed wrapper that outlives its destroyed native
-object — into a real null, so `?.` and `ReferenceEquals` behave. A cached field skips both and
-eventually holds a reference to something that no longer exists, with no way to tell which session
-it came from. A local inside one method is fine; a field is not. ERS0002 flags
-this.
+object — into a real null, so `?.` and `ReferenceEquals` behave. A field that outlives the
+singleton skips both and ends up holding a reference to something that no longer exists, with no
+way to tell which session it came from.
+
+That takes a field that can outlive it: a static one, a serialized one, one on anything that is not
+a `Component`, or one holding a singleton that is not persistent and so dies with its scene. A
+private field on a `Component` holding a persistent singleton cannot — the holder goes first — so
+`private AudioBus _bus;` assigned in `Start` is fine. So is a local. ERS0002 flags the rest.
 
 ## Lifecycle
 
@@ -275,7 +279,8 @@ break in a build with these on. Don't match singletons by name.
 
 ## Enforcement
 
-Seven Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
+Ten Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
 covering the rules above that are checkable: the required `base.Awake()` and its position, field
-caching, unguarded teardown access, `?.` on a lazy `Instance`, construction-time access, and `Awake`
-declared without `override`. See [analyzers.md](analyzers.md).
+caching, unguarded teardown access, `?.` on a lazy `Instance`, construction-time and
+serialization-callback access, a passive `Instance` read from `Awake` or `OnEnable`, `Awake`
+declared without `override`, and `hideFlags` set on a singleton. See [analyzers.md](analyzers.md).

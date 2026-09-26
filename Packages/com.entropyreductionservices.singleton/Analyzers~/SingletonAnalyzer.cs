@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,7 +10,7 @@ namespace EntropyReductionServices.Analyzers
 {
     /// <summary>
     /// Enforces the MonoBehaviourSingleton contract, documented in the package's
-    /// Documentation~/contract.md. All five rules live in one analyzer so they share a single
+    /// Documentation~/contract.md. Every rule lives in one analyzer so they share a single
     /// compilation-start lookup and a single pass over the relevant syntax kinds.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -28,9 +29,28 @@ namespace EntropyReductionServices.Analyzers
         private const string LazySingletonMetadataName =
             "EntropyReductionServices.Singletons.MonoBehaviourSingleton`1";
 
+        // Instance is null until the singleton's own Awake claims the slot. The passive-persistent
+        // flavour derives from this, so one DerivesFrom check covers both.
+        private const string PassiveMetadataName =
+            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPassive`1";
+
+        // The two flavours that mark themselves DontDestroyOnLoad. Plain MonoBehaviourSingleton<T>
+        // and MonoBehaviourSingletonPassive<T> live in a scene and die with it.
+        private const string PersistentMetadataName =
+            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPersistent`1";
+        private const string PassivePersistentMetadataName =
+            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPassivePersistent`1";
+
         private const string MonoBehaviourMetadataName = "UnityEngine.MonoBehaviour";
+        private const string ComponentMetadataName = "UnityEngine.Component";
+        private const string UnityObjectMetadataName = "UnityEngine.Object";
+        private const string SerializationReceiverMetadataName = "UnityEngine.ISerializationCallbackReceiver";
+        private const string SerializeFieldMetadataName = "UnityEngine.SerializeField";
+        private const string NonSerializedMetadataName = "System.NonSerializedAttribute";
 
         private const string InstancePropertyName = "Instance";
+        private const string HideFlagsName = "hideFlags";
+        private const string GameObjectName = "gameObject";
         private const string AvailablePropertyName = "IsAvailable";
         private const string TryGetMethodName = "TryGetInstance";
 
@@ -42,7 +62,30 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.ConstructionTimeAccess,
                 SingletonDiagnostics.HidesBaseMessage,
                 SingletonDiagnostics.RedundantNullConditional,
-                SingletonDiagnostics.BaseCallOutOfOrder);
+                SingletonDiagnostics.BaseCallOutOfOrder,
+                SingletonDiagnostics.SerializationCallbackAccess,
+                SingletonDiagnostics.HideFlagsAssignment,
+                SingletonDiagnostics.PassiveWakeRace);
+
+        /// <summary>
+        /// The Unity and singleton types the rules test against, resolved once per compilation.
+        /// Every one except SingletonBase may be null when the compilation lacks it; a rule that
+        /// needs a missing one declines to report rather than guess.
+        /// </summary>
+        private sealed class KnownTypes
+        {
+            public INamedTypeSymbol SingletonBase;
+            public INamedTypeSymbol LazySingleton;
+            public INamedTypeSymbol Passive;
+            public INamedTypeSymbol Persistent;
+            public INamedTypeSymbol PassivePersistent;
+            public INamedTypeSymbol MonoBehaviour;
+            public INamedTypeSymbol Component;
+            public INamedTypeSymbol UnityObject;
+            public INamedTypeSymbol SerializationReceiver;
+            public INamedTypeSymbol SerializeField;
+            public INamedTypeSymbol NonSerialized;
+        }
 
         /// <summary>
         /// Resolves the singleton base type once per compilation and registers nothing at all when
@@ -59,16 +102,37 @@ namespace EntropyReductionServices.Analyzers
                 var singletonBase = start.Compilation.GetTypeByMetadataName(SingletonBaseMetadataName);
                 if (singletonBase == null) return;
 
-                var monoBehaviour = start.Compilation.GetTypeByMetadataName(MonoBehaviourMetadataName);
-                var lazySingleton = start.Compilation.GetTypeByMetadataName(LazySingletonMetadataName);
+                var compilation = start.Compilation;
+                var known = new KnownTypes
+                {
+                    SingletonBase = singletonBase,
+                    LazySingleton = compilation.GetTypeByMetadataName(LazySingletonMetadataName),
+                    Passive = compilation.GetTypeByMetadataName(PassiveMetadataName),
+                    Persistent = compilation.GetTypeByMetadataName(PersistentMetadataName),
+                    PassivePersistent = compilation.GetTypeByMetadataName(PassivePersistentMetadataName),
+                    MonoBehaviour = compilation.GetTypeByMetadataName(MonoBehaviourMetadataName),
+                    Component = compilation.GetTypeByMetadataName(ComponentMetadataName),
+                    UnityObject = compilation.GetTypeByMetadataName(UnityObjectMetadataName),
+                    SerializationReceiver = compilation.GetTypeByMetadataName(SerializationReceiverMetadataName),
+                    SerializeField = compilation.GetTypeByMetadataName(SerializeFieldMetadataName),
+                    NonSerialized = compilation.GetTypeByMetadataName(NonSerializedMetadataName),
+                };
 
                 start.RegisterSyntaxNodeAction(
                     ctx => AnalyzeMethodDeclaration(ctx, singletonBase),
                     SyntaxKind.MethodDeclaration);
 
                 start.RegisterSyntaxNodeAction(
-                    ctx => AnalyzeInstanceAccess(ctx, singletonBase, monoBehaviour, lazySingleton),
+                    ctx => AnalyzeInstanceAccess(ctx, known),
                     SyntaxKind.SimpleMemberAccessExpression);
+
+                // Compound forms too: 'hideFlags |= HideFlags.DontSave' is the usual spelling.
+                start.RegisterSyntaxNodeAction(
+                    ctx => AnalyzeHideFlagsAssignment(ctx, singletonBase),
+                    SyntaxKind.SimpleAssignmentExpression,
+                    SyntaxKind.OrAssignmentExpression,
+                    SyntaxKind.AndAssignmentExpression,
+                    SyntaxKind.ExclusiveOrAssignmentExpression);
             });
         }
 
@@ -218,19 +282,16 @@ namespace EntropyReductionServices.Analyzers
         }
 
         // -----------------------------------------------------------------------------------
-        // ERS0002 / ERS0003 / ERS0004 — reads of a singleton Instance property
+        // ERS0002 / ERS0003 / ERS0004 / ERS0006 / ERS0008 / ERS0010 — reads of a singleton Instance
         // -----------------------------------------------------------------------------------
 
         /// <summary>
         /// Classifies every read of a singleton's Instance property by the context it appears in.
-        /// The cases are mutually exclusive and checked most-severe first: construction-time
-        /// access throws, field caching goes stale, teardown access may be null.
+        /// The cases are mutually exclusive and checked most-severe first: construction-time and
+        /// serialization-time access throw, a passive read during wake-up races, field caching
+        /// goes stale, teardown access may be null.
         /// </summary>
-        private static void AnalyzeInstanceAccess(
-            SyntaxNodeAnalysisContext context,
-            INamedTypeSymbol singletonBase,
-            INamedTypeSymbol monoBehaviour,
-            INamedTypeSymbol lazySingleton)
+        private static void AnalyzeInstanceAccess(SyntaxNodeAnalysisContext context, KnownTypes known)
         {
             var access = (MemberAccessExpressionSyntax)context.Node;
             if (access.Name.Identifier.ValueText != InstancePropertyName) return;
@@ -238,7 +299,7 @@ namespace EntropyReductionServices.Analyzers
             var symbol = context.SemanticModel.GetSymbolInfo(access, context.CancellationToken).Symbol;
             if (!(symbol is IPropertySymbol property)) return;
             if (property.ContainingType == null) return;
-            if (!DerivesFrom(property.ContainingType, singletonBase)) return;
+            if (!DerivesFrom(property.ContainingType, known.SingletonBase)) return;
 
             // Report the type the author actually wrote ("AudioBus"), not the generic that
             // declares the property ("MonoBehaviourSingleton").
@@ -248,10 +309,12 @@ namespace EntropyReductionServices.Analyzers
 
             var enclosing = FindEnclosingMember(access);
 
-            if (TryReportConstructionTime(context, access, enclosing, monoBehaviour, singletonName)) return;
-            if (TryReportFieldCache(context, access, singletonName)) return;
+            if (TryReportConstructionTime(context, access, enclosing, known.MonoBehaviour, singletonName)) return;
+            if (TryReportSerializationCallback(context, access, receiver, known, singletonName)) return;
+            if (TryReportPassiveWakeRace(context, access, receiver, known, singletonName)) return;
+            if (TryReportFieldCache(context, access, receiver, known, singletonName)) return;
             if (TryReportTeardown(context, access, enclosing, singletonName)) return;
-            TryReportRedundantNullConditional(context, access, receiver, lazySingleton, singletonName);
+            TryReportRedundantNullConditional(context, access, receiver, known.LazySingleton, singletonName);
         }
 
         /// <summary>
@@ -321,26 +384,191 @@ namespace EntropyReductionServices.Analyzers
             return true;
         }
 
+        private const string OnValidateName = "OnValidate";
+        private const string OnBeforeSerializeName = "OnBeforeSerialize";
+        private const string OnAfterDeserializeName = "OnAfterDeserialize";
+
         /// <summary>
-        /// ERS0002: the read feeds a field, either through an initializer or an assignment.
-        /// Locals are intentionally not flagged — a value used within one method call is exactly
-        /// the intended usage.
+        /// ERS0008: a lazy singleton's Instance read directly in OnValidate on a UnityEngine.Object,
+        /// or in OnBeforeSerialize / OnAfterDeserialize on an ISerializationCallbackReceiver.
+        ///
+        /// Only the lazy flavour is reported, because only its Instance searches and creates; a
+        /// passive Instance reads the slot and nothing else. A read inside a lambda, anonymous
+        /// method or local function is not reported: deferring the work that way —
+        /// EditorApplication.delayCall inside OnValidate — is the fix this rule recommends, and
+        /// the syntax cannot tell a deferred delegate from one invoked on the spot.
+        /// </summary>
+        private static bool TryReportSerializationCallback(
+            SyntaxNodeAnalysisContext context,
+            MemberAccessExpressionSyntax access,
+            INamedTypeSymbol receiver,
+            KnownTypes known,
+            string singletonName)
+        {
+            if (known.LazySingleton == null || receiver == null) return false;
+            if (!DerivesFrom(receiver, known.LazySingleton)) return false;
+
+            var method = FindEnclosingMethodOutsideDelegates(access);
+            if (method == null) return false;
+
+            var name = method.Identifier.ValueText;
+            if (name != OnValidateName && name != OnBeforeSerializeName && name != OnAfterDeserializeName)
+                return false;
+
+            var owner = context.SemanticModel.GetDeclaredSymbol(method, context.CancellationToken)?.ContainingType;
+            if (owner == null) return false;
+
+            var applies = name == OnValidateName
+                ? known.UnityObject != null && DerivesFrom(owner, known.UnityObject)
+                : known.SerializationReceiver != null &&
+                  owner.AllInterfaces.Contains(known.SerializationReceiver, SymbolEqualityComparer.Default);
+            if (!applies) return false;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.SerializationCallbackAccess,
+                access.GetLocation(),
+                owner.Name,
+                name,
+                singletonName));
+            return true;
+        }
+
+        private const string AwakeName = "Awake";
+        private const string OnEnableName = "OnEnable";
+
+        /// <summary>
+        /// ERS0010: a passive singleton's Instance read directly in the Awake or OnEnable of a
+        /// MonoBehaviour other than that singleton. The slot is claimed in the singleton's own
+        /// Awake, Awake order across objects is undefined, and during a scene load each object's
+        /// OnEnable runs straight after its own Awake — so either read races the claim.
+        ///
+        /// The singleton's own type and its subclasses are exempt: there base.Awake() has already
+        /// claimed the slot. A guard such as 'Board.Instance != null' is still reported, because
+        /// losing the race then silently skips the work instead of throwing. IsAvailable and
+        /// TryGetInstance are not Instance reads and are not reported. As with ERS0008, a read in
+        /// a lambda or local function is left alone, since it usually runs later.
+        /// </summary>
+        private static bool TryReportPassiveWakeRace(
+            SyntaxNodeAnalysisContext context,
+            MemberAccessExpressionSyntax access,
+            INamedTypeSymbol receiver,
+            KnownTypes known,
+            string singletonName)
+        {
+            if (known.Passive == null || known.MonoBehaviour == null || receiver == null) return false;
+            if (!DerivesFrom(receiver, known.Passive)) return false;
+
+            var method = FindEnclosingMethodOutsideDelegates(access);
+            if (method == null) return false;
+
+            var name = method.Identifier.ValueText;
+            if (name != AwakeName && name != OnEnableName) return false;
+
+            var owner = context.SemanticModel.GetDeclaredSymbol(method, context.CancellationToken)?.ContainingType;
+            if (owner == null || !DerivesFrom(owner, known.MonoBehaviour)) return false;
+            if (DerivesFrom(owner, receiver)) return false;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.PassiveWakeRace,
+                access.GetLocation(),
+                owner.Name,
+                name,
+                singletonName));
+            return true;
+        }
+
+        /// <summary>
+        /// The method declaration an expression sits directly in, or null when a lambda, anonymous
+        /// method or local function intervenes — code in those may run later, elsewhere.
+        /// </summary>
+        private static MethodDeclarationSyntax FindEnclosingMethodOutsideDelegates(SyntaxNode node)
+        {
+            for (var current = node; current != null; current = current.Parent)
+            {
+                if (current is AnonymousFunctionExpressionSyntax || current is LocalFunctionStatementSyntax)
+                    return null;
+                if (current is MethodDeclarationSyntax method) return method;
+                if (current is MemberDeclarationSyntax) return null;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// ERS0002: the read feeds a field, either through an initializer or an assignment, and
+        /// that field can outlive the singleton it holds. Locals are intentionally not flagged — a
+        /// value used within one method call is exactly the intended usage.
         /// </summary>
         private static bool TryReportFieldCache(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access,
+            INamedTypeSymbol receiver,
+            KnownTypes known,
             string singletonName)
         {
             var target = FindAssignedField(context, access);
             if (target == null) return false;
 
+            var reason = WhyFieldCanOutlive(target, receiver, known, singletonName);
+            if (reason == null) return false;
+
             context.ReportDiagnostic(Diagnostic.Create(
                 SingletonDiagnostics.CachedInstance,
                 access.GetLocation(),
                 target.Name,
-                singletonName));
+                singletonName,
+                reason));
             return true;
         }
+
+        /// <summary>
+        /// Why a field holding this singleton can end up pointing at a dead one, or null when it
+        /// cannot. The one exempt shape is a private, non-serialized instance field on a
+        /// Component, holding a persistent singleton: the holder dies with its scene or at quit,
+        /// and the singleton outlives both. Any doubt — an unresolved type, a missing Unity symbol
+        /// — reports, which is the behaviour this rule had before it was narrowed.
+        /// </summary>
+        private static string WhyFieldCanOutlive(
+            IFieldSymbol field,
+            INamedTypeSymbol singleton,
+            KnownTypes known,
+            string singletonName)
+        {
+            if (field.IsStatic)
+                return "a static field keeps it into the next play session when domain reload is disabled";
+
+            var holder = field.ContainingType;
+            if (known.Component == null || holder == null || !DerivesFrom(holder, known.Component))
+                return $"'{holder?.Name}' is not a Component, so nothing ties its lifetime to a scene";
+
+            if (IsSerialized(field, known))
+                return "a serialized field can write a reference to an edit-mode transient into the scene";
+
+            if (singleton == null || !(DerivesFrom(singleton, known.Persistent) ||
+                                       DerivesFrom(singleton, known.PassivePersistent)))
+                return $"'{singletonName}' is not persistent, so a scene change destroys it and the " +
+                       "field keeps the dead object";
+
+            return null;
+        }
+
+        /// <summary>
+        /// Unity's field serialization rule for a reference to a UnityEngine.Object: [SerializeField],
+        /// or public and writable without [NonSerialized]. Static fields are handled by the caller.
+        /// </summary>
+        private static bool IsSerialized(IFieldSymbol field, KnownTypes known)
+        {
+            if (HasAttribute(field, known.SerializeField)) return true;
+
+            return field.DeclaredAccessibility == Accessibility.Public &&
+                   !field.IsReadOnly && !field.IsConst &&
+                   !HasAttribute(field, known.NonSerialized);
+        }
+
+        /// <summary>True when the symbol carries the given attribute; false when it is unresolved.</summary>
+        private static bool HasAttribute(ISymbol symbol, INamedTypeSymbol attribute) =>
+            attribute != null && symbol.GetAttributes().Any(
+                data => SymbolEqualityComparer.Default.Equals(data.AttributeClass, attribute));
 
         /// <summary>
         /// Resolves the field this expression is ultimately stored into, whether by field
@@ -506,6 +734,79 @@ namespace EntropyReductionServices.Analyzers
             }
 
             return false;
+        }
+
+        // -----------------------------------------------------------------------------------
+        // ERS0009 — writes to hideFlags on a singleton or its GameObject
+        // -----------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Reports an assignment, plain or compound, to a UnityEngine-declared hideFlags whose
+        /// object is a singleton component or that component's gameObject. Recognised spellings:
+        /// 'hideFlags', 'this.hideFlags', 'gameObject.hideFlags' inside a singleton subclass, and
+        /// 'X.hideFlags' / 'X.gameObject.hideFlags' where X is typed as a singleton — for example
+        /// 'AudioBus.Instance'. A GameObject held in a local or a field is not followed.
+        /// </summary>
+        private static void AnalyzeHideFlagsAssignment(
+            SyntaxNodeAnalysisContext context,
+            INamedTypeSymbol singletonBase)
+        {
+            var left = ((AssignmentExpressionSyntax)context.Node).Left;
+            if (NameOf(left)?.Identifier.ValueText != HideFlagsName) return;
+
+            var symbol = context.SemanticModel.GetSymbolInfo(left, context.CancellationToken).Symbol;
+            if (!IsDeclaredByUnity(symbol)) return;
+
+            // The hideFlags belong either to the singleton itself or to its gameObject.
+            var receiverType = ReceiverTypeOf(context, left);
+            string target = null;
+
+            if (receiverType != null && DerivesFrom(receiverType, singletonBase))
+            {
+                target = $"the singleton '{receiverType.Name}'";
+            }
+            else if (left is MemberAccessExpressionSyntax access && IsGameObjectAccess(context, access.Expression))
+            {
+                var ownerType = ReceiverTypeOf(context, access.Expression);
+                if (ownerType != null && DerivesFrom(ownerType, singletonBase))
+                    target = $"the GameObject of the singleton '{ownerType.Name}'";
+            }
+
+            if (target == null) return;
+
+            var enclosing = context.SemanticModel
+                .GetEnclosingSymbol(left.SpanStart, context.CancellationToken)?.ContainingType;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.HideFlagsAssignment,
+                context.Node.GetLocation(),
+                enclosing?.Name ?? "<unknown>",
+                target));
+        }
+
+        /// <summary>The member name of 'x.name' or a bare 'name'; null for anything else.</summary>
+        private static SimpleNameSyntax NameOf(ExpressionSyntax expression) =>
+            expression is MemberAccessExpressionSyntax access ? access.Name : expression as IdentifierNameSyntax;
+
+        /// <summary>
+        /// The static type of the object a member is read from: the type of 'x' in 'x.name', or
+        /// the enclosing type for a bare 'name', which reads from 'this'.
+        /// </summary>
+        private static INamedTypeSymbol ReceiverTypeOf(SyntaxNodeAnalysisContext context, ExpressionSyntax member)
+        {
+            if (member is MemberAccessExpressionSyntax access)
+                return context.SemanticModel.GetTypeInfo(access.Expression, context.CancellationToken).Type
+                    as INamedTypeSymbol;
+
+            return context.SemanticModel
+                .GetEnclosingSymbol(member.SpanStart, context.CancellationToken)?.ContainingType;
+        }
+
+        /// <summary>True when the expression is UnityEngine's Component.gameObject, bare or qualified.</summary>
+        private static bool IsGameObjectAccess(SyntaxNodeAnalysisContext context, ExpressionSyntax expression)
+        {
+            if (NameOf(expression)?.Identifier.ValueText != GameObjectName) return false;
+            return IsDeclaredByUnity(context.SemanticModel.GetSymbolInfo(expression, context.CancellationToken).Symbol);
         }
 
         // -----------------------------------------------------------------------------------
