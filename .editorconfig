@@ -36,7 +36,7 @@ trim_trailing_whitespace = false   # two trailing spaces are a hard line break
 # Severities: error | warning | suggestion | silent | none
 #
 # The package ships every rule as a warning so a consumer's build is never broken by a rule they
-# did not opt into. Here, where the rules are the product, the two describing hard breakage are
+# did not opt into. Here, where the rules are the product, the rules describing hard breakage are
 # escalated so a regression fails the development build rather than scrolling past.
 dotnet_diagnostic.ERS0001.severity = error       # missing base call — singleton never registers
 dotnet_diagnostic.ERS0002.severity = warning     # Instance cached in a field
@@ -45,3 +45,6 @@ dotnet_diagnostic.ERS0004.severity = error       # access during MonoBehaviour c
 dotnet_diagnostic.ERS0005.severity = warning     # message hides the base instead of overriding
 dotnet_diagnostic.ERS0006.severity = warning     # dead null-conditional on a lazy Instance
 dotnet_diagnostic.ERS0007.severity = error       # base call misordered — silent, order-dependent
+dotnet_diagnostic.ERS0008.severity = error       # lazy Instance read from a serialization callback
+dotnet_diagnostic.ERS0009.severity = warning     # hideFlags set on a singleton
+dotnet_diagnostic.ERS0010.severity = warning     # passive Instance read from Awake/OnEnable

@@ -19,11 +19,25 @@ namespace UnityEngine
 {
     // Enough of the real hierarchy to exercise ERS0003, which now fires only on members declared
     // in the UnityEngine namespace — those are the ones backed by the native peer.
-    public class Object { public string name; }
-    public class Component : Object { public Transform transform; }
+    public enum HideFlags { None = 0, DontSave = 52 }
+    public class Object { public string name; public HideFlags hideFlags; }
+    public class GameObject : Object { }
+    public class Component : Object { public Transform transform; public GameObject gameObject; }
+    public class ScriptableObject : Object { }
     public class Transform : Component { }
     public class Behaviour : Component { public bool enabled; }
     public class MonoBehaviour : Behaviour { public void StartCoroutine(object routine) { } }
+
+    // ERS0002 treats a field carrying this as serialized, like a public one.
+    [System.AttributeUsage(System.AttributeTargets.Field)]
+    public sealed class SerializeField : System.Attribute { }
+
+    // ERS0008 recognises the serialization callbacks by this interface.
+    public interface ISerializationCallbackReceiver
+    {
+        void OnBeforeSerialize();
+        void OnAfterDeserialize();
+    }
 }
 
 namespace EntropyReductionServices.Singletons
@@ -54,5 +68,10 @@ namespace EntropyReductionServices.Singletons
         public static bool IsAvailable { get { return true; } }
         public static T Instance { get { return null; } }
         protected virtual void Awake() { }
+    }
+
+    public abstract class MonoBehaviourSingletonPassivePersistent<T> : MonoBehaviourSingletonPassive<T>
+        where T : MonoBehaviourSingletonPassivePersistent<T>
+    {
     }
 }

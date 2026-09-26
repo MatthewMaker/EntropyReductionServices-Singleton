@@ -129,14 +129,15 @@ Both routes give a versioned, resolvable dependency that upgrades and rolls back
 
 ## Analyzers
 
-Seven Roslyn rules ship with the package and apply to your assembly automatically once it
+Ten Roslyn rules ship with the package and apply to your assembly automatically once it
 references `EntropyReductionServices.Singletons` — no asset labels, no manifest entries, nothing
 copied into your `Assets` folder. They catch the contract violations that are statically
 checkable: a missing or misplaced `base.Awake()`, caching `Instance` in a field, unguarded teardown
-access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction, and `Awake` declared
-without `override`.
+access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization callback, a passive `Instance` read
+while objects are still waking, `Awake` declared without `override`, and `hideFlags` set on a
+singleton.
 
-All seven ship as warnings, because they arrive with your first reference to the package rather
+All ten ship as warnings, because they arrive with your first reference to the package rather
 than by opt-in and should not break a build you did not ask to have linted. Escalating them in
 your own project is a three-line `Default.ruleset`. See
 [analyzers.md](Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md).

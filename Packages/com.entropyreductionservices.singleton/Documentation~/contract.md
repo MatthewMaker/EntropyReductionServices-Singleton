@@ -80,13 +80,18 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 - **Field initialisers and `MonoBehaviour` constructors.** Unity throws on `Find` and
   `new GameObject` there. ERS0004.
 - **`OnValidate` and `ISerializationCallbackReceiver`.** Object creation during deserialisation is
-  unsupported and can throw.
+  unsupported and can throw. ERS0008, for the lazy flavours, whose `Instance` searches and creates.
 - **Any thread but the main thread.**
-- **Caching `Instance` in your own static or serialised field.** Bypasses both the session guard
-  and the fake-null collapse — the exact bug class this package exists to prevent. ERS0002.
-- **Reading a Passive `Instance` from another object's `Awake`.** `Awake` order is undefined, so
-  that is a race. Use `Start`, `OnEnable`, or Script Execution Order.
-- **Setting `hideFlags` on a singleton yourself.** The find path depends on them.
+- **Caching `Instance` in a field that can outlive the singleton.** Bypasses both the session
+  guard and the fake-null collapse — the exact bug class this package exists to prevent. That is a
+  static or serialised field, a field on anything but a `Component`, or any field holding a
+  singleton that is not persistent. A private, non-serialised field on a `Component` holding a
+  persistent singleton cannot outlive it. ERS0002.
+- **Reading a Passive `Instance` from another object's `Awake` or `OnEnable`.** `Awake` order is
+  undefined, and during a scene load Unity runs each object's `OnEnable` straight after its own
+  `Awake`, before the next object wakes — so both are a race. Use `Start`, which runs only after
+  every object in the scene has woken. ERS0010.
+- **Setting `hideFlags` on a singleton yourself.** The find path depends on them. ERS0009.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
 - **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged on any flavour
   that deduplicates. A duplicate now destroys only itself when its GameObject carries anything else, so a

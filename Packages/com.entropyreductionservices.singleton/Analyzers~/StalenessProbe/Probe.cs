@@ -32,12 +32,32 @@ namespace Probe
     public class Ers0002And0003And0004 : UnityEngine.MonoBehaviour
     {
         private Bus _cached = Bus.Instance;                     // ERS0004 (construction time)
-        private Bus _assigned;
+        private static Bus s_assigned;
 
-        private void Start() { _assigned = Bus.Instance; }      // ERS0002 (field cache)
+        private void Start() { s_assigned = Bus.Instance; }     // ERS0002 (static field cache)
         // ERS0003 now fires only on UnityEngine-declared members, so the probe must use one:
         // Bus.Instance.Stop() is managed and deliberately clean.
         private void OnDestroy() { Bus.Instance.StartCoroutine(null); }   // ERS0003
         private void Update() { Bus.Instance?.Stop(); }         // ERS0006 (dead null-conditional)
+    }
+
+    public class Ers0008 : UnityEngine.MonoBehaviour
+    {
+        private void OnValidate() { Bus.Instance.Stop(); }       // ERS0008 (serialization callback)
+    }
+
+    public class Ers0010 : UnityEngine.MonoBehaviour
+    {
+        private void Awake() { Board.Instance.Stop(); }         // ERS0010 (passive read while waking)
+    }
+
+    public class Board : MonoBehaviourSingletonPassive<Board>
+    {
+        public void Stop() { }
+    }
+
+    public class Ers0009 : Bus
+    {
+        public void Hide() { hideFlags = UnityEngine.HideFlags.DontSave; }   // ERS0009
     }
 }

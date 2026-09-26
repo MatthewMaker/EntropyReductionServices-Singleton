@@ -86,14 +86,75 @@ namespace Client
         // -- ERS0002: storing Instance in a field ----------------------------------------------
 
         [Test]
-        public Task ERS0002_AssignmentToAField_IsReported() => Harness.Verify(@"
+        public Task ERS0002_PrivateFieldHoldingANonPersistentSingleton_IsReported() => Harness.Verify(@"
 namespace Client
 {
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
+        private Ticker _ticker;
+        private Board _board;
+        private void Start()
+        {
+            _ticker = {|ERS0002:Ticker.Instance|};
+            _board = {|ERS0002:Board.Instance|};
+        }
+    }
+}");
+
+        [Test]
+        public Task ERS0002_PrivateFieldHoldingAPersistentSingleton_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using EntropyReductionServices.Singletons;
+    public class Relay : MonoBehaviourSingletonPassivePersistent<Relay> { }
+
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        // The holder dies with its scene; a persistent singleton outlives it.
         private Bus _bus;
-        private void Start() { _bus = {|ERS0002:Bus.Instance|}; }
+        private Relay _relay;
+        [System.NonSerialized] public Bus Exposed;
+        private void Start() { _bus = Bus.Instance; _relay = Relay.Instance; Exposed = Bus.Instance; }
+    }
+}");
+
+        [Test]
+        public Task ERS0002_StaticField_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private static Bus s_bus;
+        private void Start() { s_bus = {|ERS0002:Bus.Instance|}; }
+    }
+}");
+
+        [Test]
+        public Task ERS0002_SerializedField_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        [UnityEngine.SerializeField] private Bus _bus;
+        public Bus Bus;
+        private void Start() { _bus = {|ERS0002:Consuming.Bus.Instance|}; Bus = {|ERS0002:Consuming.Bus.Instance|}; }
+    }
+}");
+
+        [Test]
+        public Task ERS0002_FieldOnAScriptableObject_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Settings : UnityEngine.ScriptableObject
+    {
+        // An asset is not scene-bound; in the editor it can outlive a play session.
+        private Bus _bus;
+        private void OnEnable() { _bus = {|ERS0002:Bus.Instance|}; }
     }
 }");
 
@@ -444,6 +505,229 @@ namespace Client
     {
         // Normal operation: the contract says dereference directly, no guard required.
         private void Start() { Bus.Instance.Stop(); }
+    }
+}");
+
+
+        // -- ERS0008: a lazy Instance read from a serialization callback -----------------------
+
+        [Test]
+        public Task ERS0008_OnValidate_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnValidate() { {|ERS0008:Bus.Instance|}.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_OnValidateOnAScriptableObject_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Settings : UnityEngine.ScriptableObject
+    {
+        private void OnValidate() { {|ERS0008:Bus.Instance|}.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_SerializationCallbacks_AreReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour, UnityEngine.ISerializationCallbackReceiver
+    {
+        public void OnBeforeSerialize() { {|ERS0008:Bus.Instance|}.Stop(); }
+        void UnityEngine.ISerializationCallbackReceiver.OnAfterDeserialize() { {|ERS0008:Bus.Instance|}.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_FieldAssignmentInOnValidate_IsReportedOnceAsERS0008() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private Bus _bus;
+        private void OnValidate() { _bus = {|ERS0008:Bus.Instance|}; }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_PassiveInstance_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        // A passive Instance only reads the slot; it neither searches nor creates.
+        private void OnValidate() { if (Board.Instance != null) Board.Instance.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_DeferredInsideALambda_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using System;
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        public static Action DelayCall;
+        // The recommended fix: defer the work out of the callback.
+        private void OnValidate() { DelayCall += () => Bus.Instance.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0008_SameNameOnANonUnityType_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Validator
+    {
+        // Not a UnityEngine.Object and not a serialization receiver, so Unity never calls these.
+        public void OnValidate() { Bus.Instance.Stop(); }
+        public void OnAfterDeserialize() { Bus.Instance.Stop(); }
+    }
+}");
+
+        // -- ERS0010: a passive Instance read while objects are still waking ------------------
+
+        [Test]
+        public Task ERS0010_AwakeAndOnEnable_AreReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void Awake() { {|ERS0010:Board.Instance|}.Stop(); }
+        private void OnEnable() { if ({|ERS0010:Board.Instance|} != null) {|ERS0010:Board.Instance|}.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0010_PassivePersistent_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using EntropyReductionServices.Singletons;
+    public class Relay : MonoBehaviourSingletonPassivePersistent<Relay> { public void Ping() { } }
+
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void Awake() { {|ERS0010:Relay.Instance|}.Ping(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0010_StartAndGuards_AreClean() => Harness.Verify(@"
+namespace Client
+{
+    using System;
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        public static Action Later;
+        private void Start() { Board.Instance.Stop(); }
+        private void Awake()
+        {
+            Board board;
+            if (Board.TryGetInstance(out board)) board.Stop();
+            Later += () => Board.Instance.Stop();
+        }
+    }
+}");
+
+        [Test]
+        public Task ERS0010_TheSingletonsOwnAwake_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class LocalBoard : Board
+    {
+        // base.Awake() has already claimed the slot for this very object.
+        protected override void Awake() { base.Awake(); Board.Instance.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0010_LazyInstanceInAwake_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        // A lazy Instance finds or creates the singleton, so there is no race.
+        private void Awake() { Bus.Instance.Stop(); }
+    }
+}");
+
+        [Test]
+        public Task ERS0010_NonUnityTypeNamedAwake_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Plain
+    {
+        public void Awake() { Board.Instance.Stop(); }
+    }
+}");
+
+        // -- ERS0009: writes to hideFlags on a singleton ---------------------------------------
+
+        [Test]
+        public Task ERS0009_InsideTheSingleton_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using UnityEngine;
+    public class Radio : Bus
+    {
+        public void Hide()
+        {
+            {|ERS0009:hideFlags = HideFlags.DontSave|};
+            {|ERS0009:this.hideFlags |= HideFlags.DontSave|};
+            {|ERS0009:gameObject.hideFlags = HideFlags.DontSave|};
+            {|ERS0009:this.gameObject.hideFlags &= HideFlags.None|};
+        }
+    }
+}");
+
+        [Test]
+        public Task ERS0009_ThroughInstance_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using UnityEngine;
+    public class Holder : MonoBehaviour
+    {
+        private void Start()
+        {
+            {|ERS0009:Bus.Instance.hideFlags = HideFlags.None|};
+            {|ERS0009:Board.Instance.gameObject.hideFlags ^= HideFlags.DontSave|};
+        }
+    }
+}");
+
+        [Test]
+        public Task ERS0009_NonSingletonObjects_AreClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using UnityEngine;
+    public class Holder : MonoBehaviour
+    {
+        private void Start()
+        {
+            hideFlags = HideFlags.DontSave;
+            gameObject.hideFlags = HideFlags.DontSave;
+            Bus.Instance.transform.hideFlags = HideFlags.DontSave;
+            var flags = Bus.Instance.hideFlags;
+        }
     }
 }");
     }
