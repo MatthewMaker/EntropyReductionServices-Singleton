@@ -86,7 +86,7 @@ namespace Client
         // -- ERS0002: storing Instance in a field ----------------------------------------------
 
         [Test]
-        public Task ERS0002_PrivateFieldHoldingANonPersistentSingleton_IsReported() => Harness.Verify(@"
+        public Task ERS0002_PrivateFieldHoldingASceneLifetimeSingleton_IsReported() => Harness.Verify(@"
 namespace Client
 {
     using Consuming;
@@ -98,16 +98,39 @@ namespace Client
 }");
 
         [Test]
-        public Task ERS0002_PrivateFieldHoldingAPersistentSingleton_IsClean() => Harness.Verify(@"
+        public Task ERS0002_PrivateFieldHoldingAnApplicationLifetimeSingleton_IsClean() => Harness.Verify(@"
 namespace Client
 {
     using Consuming;
     public class Holder : UnityEngine.MonoBehaviour
     {
-        // The holder dies with its scene; a persistent singleton outlives it.
+        // The holder dies with its scene; an Application-lifetime singleton outlives it.
         private Bus _bus;
         [System.NonSerialized] public Bus Exposed;
         private void Start() { _bus = Bus.Instance; Exposed = Bus.Instance; }
+    }
+}");
+
+        [Test]
+        public Task ERS0002_InheritedAndExplicitLifetimes_AreRead() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using EntropyReductionServices.Singletons;
+
+    // A shared base carrying the attribute: Level inherits its Scene lifetime.
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
+    public abstract class SceneScoped<T> : MonoBehaviourSingleton<T> where T : SceneScoped<T> { }
+    public class Level : SceneScoped<Level> { }
+
+    [SingletonLifetime(SingletonLifetimePolicy.Application)]
+    public class Explicit : MonoBehaviourSingleton<Explicit> { }
+
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private Level _level;
+        private Explicit _explicit;
+        private void Start() { _level = {|ERS0002:Level.Instance|}; _explicit = Explicit.Instance; }
     }
 }");
 

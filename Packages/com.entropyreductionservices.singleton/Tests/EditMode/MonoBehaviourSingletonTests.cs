@@ -4,9 +4,8 @@ using UnityEngine;
 namespace EntropyReductionServices.Singletons.Tests
 {
     /// <summary>
-    /// The lazy, auto-creating flavour: resolve from the loaded scenes, then Resources, then a
-    /// bare GameObject. This flavour declares no Awake, so nothing here exercises slot-claiming;
-    /// that belongs to the Persistent tests.
+    /// Resolution: from the loaded scenes, then Resources, then a bare GameObject, and the policies
+    /// that restrict it. Slot-claiming in Awake is covered by MonoBehaviourSingletonAwakeTests.
     /// </summary>
     public class MonoBehaviourSingletonTests
     {
@@ -160,19 +159,6 @@ namespace EntropyReductionServices.Singletons.Tests
             {
                 _ = AutoEditModeDisabledWithSceneInstance.Instance;
             });
-        }
-
-        [Test]
-        public void KnownGap_PlainFlavourNeverClaimsTheSlotOrDestroysDuplicates()
-        {
-            // Documented under KNOWN GAPS in MonoBehaviourSingleton.cs: this flavour declares no
-            // Awake, so authoring two of them claims nothing and destroys nothing. Asserting that
-            // directly keeps this test out of the resolution path, which logs an error by design.
-            var first = Fixtures.Author<AutoDuplicatesSurvive>("A");
-            var second = Fixtures.Author<AutoDuplicatesSurvive>("B");
-
-            Assert.IsFalse(AutoDuplicatesSurvive.Exists, "no Awake means no slot was claimed");
-            Assert.IsTrue(first != null && second != null, "both duplicates are expected to survive");
         }
 
         [Test]

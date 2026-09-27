@@ -6,7 +6,7 @@
 //  the code it describes drifts out of date without anyone noticing.
 //
 //  Two rules the compiler will not enforce for you:
-//    - CRTP: class Foo : MonoBehaviourSingletonPersistent<Foo>
+//    - CRTP: class Foo : MonoBehaviourSingleton<Foo>
 //    - An Awake or OnDestroy override MUST call its base implementation. The base claims and
 //      releases the singleton slot; skipping it leaves the type silently non-functional.
 //
@@ -43,6 +43,34 @@ namespace EntropyReductionServices.Singletons
     }
 
     /// <summary>
+    /// How long a singleton lives once it holds the slot.
+    /// </summary>
+    public enum SingletonLifetimePolicy
+    {
+        /// <summary>
+        /// Marked DontDestroyOnLoad, so it survives scene loads and lives until the application
+        /// quits. Default: suits services whose existence is an implementation detail.
+        /// </summary>
+        Application,
+
+        /// <summary>
+        /// Stays in the scene it was authored or created in, and is destroyed with it. The next
+        /// read of Instance after that resolves afresh — typically the instance authored in the
+        /// scene that replaced it. For per-scene objects such as a level director.
+        /// </summary>
+        Scene
+    }
+
+    /// <summary>Sets how long a singleton lives. Without it, the lifetime is Application.</summary>
+    /// <example><code>[SingletonLifetime(SingletonLifetimePolicy.Scene)] public class LevelDirector : ...</code></example>
+    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
+    public sealed class SingletonLifetimeAttribute : Attribute
+    {
+        public SingletonLifetimePolicy Policy { get; }
+        public SingletonLifetimeAttribute(SingletonLifetimePolicy policy) => Policy = policy;
+    }
+
+    /// <summary>
     /// Whether a lazy singleton may bring an instance into existence when Instance is read and
     /// none is in the loaded scenes.
     /// </summary>
@@ -63,7 +91,8 @@ namespace EntropyReductionServices.Singletons
         /// anything that would be wrong if conjured from nothing. Where the singleton is
         /// legitimately optional, guard with ExistsOrFindInScene(), the only accessor that
         /// searches: IsAvailable, Exists and TryGetInstance read the cache alone, so they report
-        /// false for an instance in the scene until something has resolved it.
+        /// false for an instance in the scene until its Awake has claimed the slot or something
+        /// has resolved it — in edit mode, where Awake does not run, that is until a search.
         /// </summary>
         FindOnly
     }
@@ -164,7 +193,7 @@ namespace EntropyReductionServices.Singletons
 
         /// <summary>
         /// True when the singleton type declares anything Unity would serialize, ignoring members
-        /// of the singleton base classes themselves.
+        /// of MonoBehaviourSingleton&lt;T&gt; itself.
         ///
         /// Decides whether a persistent singleton on a shared GameObject may be rebuilt on an object of
         /// its own: with no serialized state there is nothing for the rebuild to lose. Non-generic
@@ -183,7 +212,7 @@ namespace EntropyReductionServices.Singletons
             for (var current = type; current != null; current = current.BaseType)
             {
                 if (current.IsGenericType &&
-                    current.GetGenericTypeDefinition() == typeof(MonoBehaviourSingletonBase<>))
+                    current.GetGenericTypeDefinition() == typeof(MonoBehaviourSingleton<>))
                     break;
 
                 foreach (var field in current.GetFields(Declared))
@@ -226,7 +255,7 @@ namespace EntropyReductionServices.Singletons
         public static bool IsTearingDown => IsQuitting || IsUnloadingScene;
 
         /// <summary>
-        /// Records that a singleton was destroyed by a scene unload. Called by the singleton base
+        /// Records that a singleton was destroyed by a scene unload. Called by MonoBehaviourSingleton
         /// from OnDestroy; there is no public event that fires early enough to do this for us.
         /// </summary>
         internal static void NotifySceneUnloading() => s_unloadFrame = Time.frameCount;
@@ -249,14 +278,21 @@ namespace EntropyReductionServices.Singletons
     }
 
     /// <summary>
-    /// Shared plumbing for the singleton flavours below.
+    /// Lazy singleton: resolves from the scene, then Resources, then an empty GameObject. Its
+    /// Awake claims the slot and destroys later duplicates, and it lives until the application
+    /// quits unless marked [SingletonLifetime(Scene)].
+    /// It will not resurrect itself during teardown — application quit or scene unload — which is
+    /// what produced "leaked GameObject" warnings. Instance hands back the destroyed component in
+    /// that window. Under [SingletonCreation(FindOnly)], or outside play mode depending on
+    /// [SingletonEditMode], it either resolves from the scene or throws MissingSingletonException
+    /// — it does not return null.
     ///
     /// The type parameter is constrained CRTP-style (T must be the concrete subclass) so that
-    /// `_instance` is statically known to be a MonoBehaviourSingletonBase<T>.
-	/// </summary>
-    /// <remarks>Usage: <c>public class Foo : MonoBehaviourSingletonPersistent<Foo> { }</c></remarks>
+    /// the cached instance is statically typed as the subclass.
+    /// </summary>
+    /// <remarks>Usage: <c>public class Foo : MonoBehaviourSingleton<Foo> { }</c></remarks>
     [DisallowMultipleComponent]
-    public abstract class MonoBehaviourSingletonBase<T> : MonoBehaviour where T : MonoBehaviourSingletonBase<T>
+    public abstract class MonoBehaviourSingleton<T> : MonoBehaviour where T : MonoBehaviourSingleton<T>
     {
         private static T s_instance;
         private static T s_lastKnown;
@@ -404,11 +440,29 @@ namespace EntropyReductionServices.Singletons
             }
         }
 
+        private static SingletonLifetimePolicy? s_lifetimePolicy;
+
+        /// <summary>Resolves (once) how long this type lives. Defaults to Application.</summary>
+        protected static SingletonLifetimePolicy LifetimePolicy
+        {
+            get
+            {
+                if (s_lifetimePolicy == null)
+                {
+                    var attr = Attribute.GetCustomAttribute(
+                        typeof(T), typeof(SingletonLifetimeAttribute), true) as SingletonLifetimeAttribute;
+                    s_lifetimePolicy = attr?.Policy ?? SingletonLifetimePolicy.Application;
+                }
+
+                return s_lifetimePolicy.Value;
+            }
+        }
+
         private static SingletonCreationPolicy? s_creationPolicy;
 
         /// <summary>
         /// Resolves (once) whether this type may create an instance at all. Defaults to
-        /// CreateOnDemand, the lazy flavour's never-null contract.
+        /// CreateOnDemand, the never-null contract of Instance.
         /// </summary>
         protected static SingletonCreationPolicy CreationPolicy
         {
@@ -906,19 +960,7 @@ namespace EntropyReductionServices.Singletons
             s_instance = null;
             Log("cleared instance on destroy.", this);
         }
-    }
 
-    /// <summary>
-    /// Lazy singleton: resolves from the scene, then Resources, then an empty GameObject.
-    /// It will not resurrect itself during teardown — application quit or scene unload — which is
-    /// what produced "leaked GameObject" warnings. Instance hands back the destroyed component in
-    /// that window. Under [SingletonCreation(FindOnly)], or outside play mode depending on
-    /// [SingletonEditMode], it either resolves from the scene or throws MissingSingletonException
-    /// — it does not return null.
-    /// </summary>
-    public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
-        where T : MonoBehaviourSingleton<T>
-    {
         /// <summary>
         /// True when Instance can currently hand back a live object.
         ///
@@ -1001,24 +1043,31 @@ namespace EntropyReductionServices.Singletons
                 throw new MissingSingletonException(PolicyViolationMessage());
             }
         }
-    }
 
-    /// <summary>Lazy singleton that survives scene loads; later duplicates destroy themselves.</summary>
-    public abstract class MonoBehaviourSingletonPersistent<T> : MonoBehaviourSingleton<T>
-        where T : MonoBehaviourSingletonPersistent<T>
-    {
         /// <summary>
-        /// Claims the slot if it is free, then persists this instance if it holds the slot and
-        /// destroys it otherwise. Persisting is keyed on holding the slot rather than on having
-        /// just claimed it: another object's Awake can resolve a scene-authored instance through
-        /// the scene search before this Awake runs, and that instance must still be persisted.
+        /// Claims the slot if it is free, then keeps this instance if it holds the slot and
+        /// destroys it otherwise; a kept instance is marked DontDestroyOnLoad unless its lifetime
+        /// is Scene. Keyed on holding the slot rather than on having just claimed it: another
+        /// object's Awake can resolve a scene-authored instance through the scene search before
+        /// this Awake runs, and that instance must still be kept and persisted.
+        ///
+        /// Does nothing where the type may not resolve at all — outside play mode under
+        /// [SingletonEditMode(Disabled)] — so an [ExecuteAlways] instance cannot fill a slot that
+        /// Instance would then refuse to hand out.
         /// </summary>
         protected virtual void Awake()
         {
+            if (!MayResolve) return;
+
             if (Current == null) AssignInAwake();
 
-            if (IsCurrentInstance) DontDestroy();
-            else DestroyDuplicate();
+            if (!IsCurrentInstance)
+            {
+                DestroyDuplicate();
+                return;
+            }
+
+            if (LifetimePolicy == SingletonLifetimePolicy.Application) DontDestroy();
         }
     }
 }

@@ -56,15 +56,15 @@ outlive the singleton it holds:
   tied to a scene, so nothing ends its lifetime alongside the singleton's;
 - **a serialized field** (`[SerializeField]`, or public without `[NonSerialized]`) — in edit mode it
   can write a reference to a transient, never-saved singleton into the scene;
-- **a field holding a singleton that is not persistent** — `MonoBehaviourSingleton<T>` dies with
-  its scene, and the field keeps the dead object.
+- **a field holding a singleton with `[SingletonLifetime(SingletonLifetimePolicy.Scene)]`**,
+  declared on the type or a base — it dies with its scene, and the field keeps the dead object.
 
 What remains is not reported: a private, non-serialized field on a `Component`, holding a
-`MonoBehaviourSingletonPersistent<T>`. The holder
-dies with its scene or at quit, and the singleton outlives both. Locals are not reported either:
+singleton with the default Application lifetime. The holder dies with its scene or at quit, and
+the singleton outlives both. Locals are not reported either:
 
 ```csharp
-private AudioBus _bus;             // AudioBus is persistent: fine
+private AudioBus _bus;             // AudioBus lives until quit: fine
 
 private void Start()  { _bus = AudioBus.Instance; }
 
@@ -142,12 +142,11 @@ runs — the same end state as ERS0001, reached by a different mistake.
 
 ## ers0006 — no null-conditional on a lazy Instance
 
-`MonoBehaviourSingleton<T>` and `MonoBehaviourSingletonPersistent<T>` resolve, create, or throw.
-Their `Instance` does not return null while the application is running, and during teardown it
+`MonoBehaviourSingleton<T>` resolves, creates, or throws. Its `Instance` does not return null while the application is running, and during teardown it
 returns the destroyed component — which `?.` does not stop, because the operator tests the
 reference rather than consulting Unity's `==` overload.
 
-So on these flavours `?.` is dead outside teardown and useless inside it, while telling every
+So `?.` is dead outside teardown and useless inside it, while telling every
 reader that the value may be null. Dereference directly:
 
 ```csharp
@@ -230,15 +229,6 @@ AudioBus.Instance.gameObject.hideFlags = HideFlags.None; // ERS0009, from anywhe
 Plain and compound assignments (`|=`, `&=`, `^=`) are reported, on the component and on its
 `gameObject`, when spelled directly. A `GameObject` reached through a local variable or a field is
 not followed. Reading `hideFlags` is fine.
-
-## ers0010 — removed
-
-Removed in 3.0.0 along with `MonoBehaviourSingletonPassive<T>` and
-`MonoBehaviourSingletonPassivePersistent<T>`, the only flavours it applied to. It reported a passive
-`Instance` read from another object's `Awake` or `OnEnable`, which raced the singleton's own
-`Awake`. `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`, their replacement, resolves by
-scene search and has no such race. See [migrating from the passive
-flavors](singletons.md#migrating-from-the-passive-flavors).
 
 ## Retuning severities
 

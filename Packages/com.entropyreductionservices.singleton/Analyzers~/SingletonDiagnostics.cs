@@ -58,8 +58,8 @@ namespace EntropyReductionServices.Analyzers
         /// <summary>
         /// ERS0002 — storing Instance in a field that can outlive the singleton. Bypasses the
         /// session guard and the fake-null collapse, which are the two mechanisms that make the
-        /// accessor safe. A private, non-serialized field on a Component holding a persistent
-        /// singleton cannot outlive it, and is not reported.
+        /// accessor safe. A private, non-serialized field on a Component holding a singleton with
+        /// the default Application lifetime cannot outlive it, and is not reported.
         /// </summary>
         public static readonly DiagnosticDescriptor CachedInstance = Rule(
             id: "ERS0002",
@@ -71,9 +71,9 @@ namespace EntropyReductionServices.Analyzers
                          "A field copy does neither, so once the singleton is replaced it points " +
                          "at an object that no longer exists. Reported for static fields, fields on " +
                          "anything that is not a Component, serialized fields, and fields holding " +
-                         "a singleton that is not persistent. A private, non-serialized field on a " +
-                         "Component holding a persistent singleton cannot outlive it and is not " +
-                         "reported, and neither is a local variable.");
+                         "a singleton with a Scene lifetime. A private, non-serialized field on a " +
+                         "Component holding a singleton with the default Application lifetime " +
+                         "cannot outlive it and is not reported, and neither is a local variable.");
 
         /// <summary>
         /// ERS0003 — dereferencing Instance during teardown, where the contract allows null.

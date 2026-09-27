@@ -21,12 +21,10 @@ namespace EntropyReductionServices.Singletons.Tests
     public class SingletonNamespaceTests
     {
         // Mirrors the *MetadataName constants in Analyzers~/SingletonAnalyzer.cs, one case each.
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonBase`1",
-            typeof(MonoBehaviourSingletonBase<>))]
         [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingleton`1",
             typeof(MonoBehaviourSingleton<>))]
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPersistent`1",
-            typeof(MonoBehaviourSingletonPersistent<>))]
+        [TestCase("EntropyReductionServices.Singletons.SingletonLifetimeAttribute",
+            typeof(SingletonLifetimeAttribute))]
         [TestCase("UnityEngine.MonoBehaviour", typeof(MonoBehaviour))]
         [TestCase("UnityEngine.Component", typeof(Component))]
         [TestCase("UnityEngine.Object", typeof(UnityEngine.Object))]
@@ -37,22 +35,6 @@ namespace EntropyReductionServices.Singletons.Tests
             Assert.AreEqual(expected, actual.FullName,
                 "the analyzer resolves this type by this exact string; a mismatch silently " +
                 "disables the rules that depend on it");
-        }
-
-        /// <summary>
-        /// Walks the base chain comparing generic type definitions. Type.IsSubclassOf cannot answer
-        /// this: the base of the open MonoBehaviourSingletonPersistent&lt;T&gt; is the constructed
-        /// MonoBehaviourSingleton&lt;T&gt;, which is never equal to the open definition.
-        /// </summary>
-        private static bool DerivesFrom(System.Type type, System.Type openBaseDefinition)
-        {
-            for (var current = type.BaseType; current != null; current = current.BaseType)
-            {
-                if (current.IsGenericType && current.GetGenericTypeDefinition() == openBaseDefinition)
-                    return true;
-            }
-
-            return false;
         }
     }
 }

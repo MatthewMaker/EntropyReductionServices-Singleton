@@ -44,7 +44,7 @@ persistent.
 ```csharp
 using EntropyReductionServices.Singletons;
 
-public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
+public class AudioBus : MonoBehaviourSingleton<AudioBus>
 {
     private AudioMixer _mixer;
 
@@ -62,27 +62,38 @@ public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
 AudioBus.Instance.Play(clip);               // anywhere, any time the app is running
 ```
 
-Note the CRTP shape: `AudioBus : MonoBehaviourSingletonPersistent<AudioBus>` names itself as the
-type parameter. `AudioBus : MonoBehaviourSingletonPersistent<SomethingElse>` does not compile, which
+Note the CRTP shape: `AudioBus : MonoBehaviourSingleton<AudioBus>` names itself as the
+type parameter. `AudioBus : MonoBehaviourSingleton<SomethingElse>` does not compile, which
 is deliberate — the older form of this code accepted it and threw at runtime instead.
 
-## Choosing a flavor
+## Choosing a lifetime and a creation policy
 
-| | Survives scene load |
-|---|---|
-| `MonoBehaviourSingleton<T>` | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes |
+There is one class, `MonoBehaviourSingleton<T>`. Its `Awake` claims the slot and destroys later
+duplicates, and two attributes decide the rest.
 
-Both resolve `Instance` on demand: they search the loaded scenes, then try `Resources`, then create
+`Instance` resolves on demand: it searches the loaded scenes, then tries `Resources`, then creates
 a bare GameObject. `Instance` is non-null the entire time the application is running. That suits
 stateless services whose existence is an implementation detail — an audio router, a coroutine
 host, a logging sink.
+
+**Lifetime.** By default a singleton is marked `DontDestroyOnLoad` and lives until the application
+quits. A per-scene object — a level director, a scene's UI root — should instead die with its
+scene, so that the next scene's own instance takes the slot:
+
+```csharp
+[SingletonLifetime(SingletonLifetimePolicy.Scene)]
+public class LevelDirector : MonoBehaviourSingleton<LevelDirector> { }
+```
+
+On a single-mode scene change Unity destroys the old scene's objects before the new scene's `Awake`
+runs, so the old instance has released the slot by the time the new one claims it.
 
 **Authored singletons.** When the object must be authored — it carries inspector-configured state,
 scene references, or anything that would be wrong if silently conjured from nothing — forbid
 creation:
 
 ```csharp
+[SingletonLifetime(SingletonLifetimePolicy.Scene)]
 [SingletonCreation(SingletonCreationPolicy.FindOnly)]
 public class LevelDirector : MonoBehaviourSingleton<LevelDirector>
 {
@@ -97,19 +108,6 @@ building a stand-in with default fields. Because the lookup is a scene search, a
 Where the singleton is genuinely optional, ask `ExistsOrFindInScene()` first: it is the only
 accessor that searches, while `IsAvailable`, `Exists` and `TryGetInstance` read the cache alone.
 
-**Persistent** variants call `DontDestroyOnLoad` and destroy duplicates that appear on later scene
-loads. Plain `MonoBehaviourSingleton<T>` declares no `Awake` at all, so it does not deduplicate — it
-picks one instance and logs the others. If you want enforcement, use the persistent flavor.
-
-### Migrating from the passive flavors
-
-`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` were removed in
-3.0.0, after being deprecated in 2.6.0. Derive from `MonoBehaviourSingleton<T>` or
-`MonoBehaviourSingletonPersistent<T>` respectively and add
-`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`. Two behaviours change: `Instance` throws
-`MissingSingletonException` instead of returning null when nothing is authored — ask
-`ExistsOrFindInScene()` where the singleton is optional — and `MonoBehaviourSingletonPassive<T>`
-destroyed duplicates where plain `MonoBehaviourSingleton<T>` only logs them.
 
 ## The contract
 
@@ -183,15 +181,16 @@ singleton skips both and ends up holding a reference to something that no longer
 way to tell which session it came from.
 
 That takes a field that can outlive it: a static one, a serialized one, one on anything that is not
-a `Component`, or one holding a singleton that is not persistent and so dies with its scene. A
-private field on a `Component` holding a persistent singleton cannot — the holder goes first — so
+a `Component`, or one holding a singleton with a Scene lifetime, which dies with its scene. A
+private field on a `Component` holding a singleton with the default lifetime cannot — the holder
+goes first — so
 `private AudioBus _bus;` assigned in `Start` is fine. So is a local. ERS0002 flags the rest.
 
 ## Lifecycle
 
-**First access** on an auto-creating flavor runs, in order: search every active instance of the
-type in the loaded scenes → load and instantiate from `Resources` → create a bare GameObject →
-reparent to root → mark `DontDestroyOnLoad`. Each step is skipped once the previous one succeeds.
+**First access** runs, in order: search every active instance of the type in the loaded scenes →
+load and instantiate from `Resources` → create a bare GameObject → reparent to root → mark
+`DontDestroyOnLoad` (unless the lifetime is Scene). Each step is skipped once the previous one succeeds.
 That is a meaningful frame cost, and it lands wherever the first access happens to be — so touch
 your singletons during loading, not mid-session on device.
 
@@ -202,9 +201,9 @@ If the lazy path creates the instance, that instance's own `Awake` runs re-entra
 so the same scene produces the same winner on every run. The losers are logged with their full
 paths, because "there is more than one of these" is useless without knowing where.
 
-**Scene load** destroys non-persistent singletons with their scene; the static slot is cleared in
-`OnDestroy`. Persistent ones survive, and a duplicate arriving in the newly loaded scene destroys
-itself in its own `Awake`, after that `Awake` has already run.
+**Scene load** destroys Scene-lifetime singletons with their scene; the static slot is cleared in
+`OnDestroy`. The rest survive, and a duplicate arriving in the newly loaded scene destroys itself in
+its own `Awake`, after that `Awake` has already run.
 
 **Shutdown** is detected from `Application.quitting`. From that point nothing is created, and
 `Instance` hands back the destroyed component (see [The contract](#the-contract)) with a single
@@ -247,12 +246,12 @@ anything has resolved they all report false even when an instance is sitting in 
 
 ## Configuration
 
-**Resources path.** Auto-creating flavors try `Resources.Load<T>` before creating a bare object,
+**Resources path.** Unless the type is `FindOnly`, `Instance` tries `Resources.Load<T>` before creating a bare object,
 defaulting to the type name. Override it:
 
 ```csharp
 [SingletonResource("Services/InputRouter")]
-public class InputRouter : MonoBehaviourSingletonPersistent<InputRouter> { }
+public class InputRouter : MonoBehaviourSingleton<InputRouter> { }
 ```
 
 The load is probed once per session — `Resources.Load` is synchronous, and probing it on every
@@ -268,8 +267,8 @@ protected override bool DestroyWholeGameObject => false;   // never take the Gam
 protected override bool DestroyWholeGameObject => true;    // always take the GameObject
 ```
 
-**Persistent singletons on a shared object.** `DontDestroyOnLoad` moves the whole `GameObject`, so
-a persistent singleton sharing its GameObject drags every sibling into the persistent scene. A singleton
+**Singletons on a shared object.** `DontDestroyOnLoad` moves the whole `GameObject`, so a singleton
+with the default lifetime sharing its GameObject drags every sibling into the persistent scene. A singleton
 with no serialized fields is rebuilt on an object of its own named for the type, and the GameObject stays
 put. One with serialized fields cannot be — there is authored state that a rebuild would discard —
 so the GameObject is persisted and *Tools > Entropy Reduction Services > Validate Singleton Placement* reports

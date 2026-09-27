@@ -15,7 +15,7 @@ exactly what it guarantees.
 using EntropyReductionServices.Singletons;
 using UnityEngine;
 
-public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
+public class AudioBus : MonoBehaviourSingleton<AudioBus>
 {
     private AudioSource _source;
 
@@ -41,17 +41,17 @@ private void OnDestroy()
 }
 ```
 
-## Flavours
+## Lifetime and creation
 
-| Type | Survives scene load |
-|---|---|
-| `MonoBehaviourSingleton<T>` | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes |
+`MonoBehaviourSingleton<T>` resolves from the scene, then `Resources`, then a new `GameObject`,
+claims the slot in `Awake`, destroys later duplicates, and lives until the application quits. Two
+attributes adjust that:
 
-Both resolve from the scene, then `Resources`, then a new `GameObject`, and suit stateless
-services whose existence is an implementation detail. For objects that must be authored, carrying
-inspector state or scene references, add `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`:
-`Instance` then resolves from the scene only and throws if nothing was authored.
+- `[SingletonLifetime(SingletonLifetimePolicy.Scene)]` — die with the scene instead, for per-scene
+  objects such as a level director.
+- `[SingletonCreation(SingletonCreationPolicy.FindOnly)]` — never create; resolve from the scene
+  only and throw if nothing was authored, for objects carrying inspector state or scene
+  references.
 
 ## Analyzers
 
@@ -72,7 +72,7 @@ package rather than by opt-in. Retune or switch any of them off with a `Default.
 - [contract.md](Documentation~/contract.md) — the normative contract: guarantees, teardown
   semantics, constraints on your subclass, forbidden usages, known gaps.
 - [singletons.md](Documentation~/singletons.md) — why the implementation is shaped this way, and
-  how to choose a flavour.
+  how to choose a lifetime and creation policy.
 - [analyzers.md](Documentation~/analyzers.md) — the nine rules, and how to change their severity.
 - [CHANGELOG.md](CHANGELOG.md)
 

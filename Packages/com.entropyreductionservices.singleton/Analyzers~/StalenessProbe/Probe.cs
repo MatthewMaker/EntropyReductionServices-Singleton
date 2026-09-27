@@ -8,7 +8,7 @@ namespace Probe
 {
     using EntropyReductionServices.Singletons;
 
-    public class Bus : MonoBehaviourSingletonPersistent<Bus>
+    public class Bus : MonoBehaviourSingleton<Bus>
     {
         public void Stop() { }
     }
