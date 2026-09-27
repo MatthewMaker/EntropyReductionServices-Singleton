@@ -11,6 +11,13 @@
 #     scripts/release.sh minor --execute      # bump, rebuild, verify, commit, tag
 #     scripts/release.sh 2.3.1 --execute --push
 #     scripts/release.sh patch --execute --skip-unity
+#     scripts/release.sh 3.0.0-pre.1 --execute     # a pre-release: -pre.N, -rc.N or -exp.N
+#
+# A pre-release is given as an explicit version, and so is whatever follows one: major, minor and
+# patch are refused while package.json holds a pre-release, since "the next patch of 3.0.0-pre.1"
+# has no single meaning. A pre-release leaves AnalyzerReleases.Unshipped.md alone — its rules ship
+# with the release it leads to — and release.yml publishes it as a GitHub pre-release and under the
+# npm dist-tag named by its label, so it never becomes `latest`.
 #
 # The verification step runs the Unity EditMode and PlayMode suites on the project's own editor
 # version. CI runs them only on the 6000.3 floor, which is why this is a local script rather than a
@@ -63,7 +70,7 @@ for arg in "$@"; do
         -h|--help) usage 0 ;;
         major|minor|patch) LEVEL="$arg" ;;
         [0-9]*.[0-9]*.[0-9]*) LEVEL="$arg" ;;
-        *) die "unrecognised argument '$arg'. Expected major|minor|patch|x.y.z, --execute, --push, --skip-unity." ;;
+        *) die "unrecognised argument '$arg'. Expected major|minor|patch|x.y.z[-(pre|rc|exp).N], --execute, --push, --skip-unity." ;;
     esac
 done
 
@@ -131,22 +138,38 @@ fi
 PENDING_RULES="$(grep -cE '^ERS[0-9]{4} \|' "$UNSHIPPED" || true)"
 
 CURRENT="$(python3 -c "import json;print(json.load(open('$PACKAGE_JSON'))['version'])")"
+# Version grammar and ordering come from sync-version.py, so the two cannot disagree about what a
+# valid version is or which of two is newer.
 NEXT="$(python3 - "$CURRENT" "$LEVEL" <<'PY'
-import re, sys
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sync_version", "scripts/sync-version.py")
+sv = importlib.util.module_from_spec(spec); spec.loader.exec_module(sv)
 current, level = sys.argv[1], sys.argv[2]
-if re.fullmatch(r"\d+\.\d+\.\d+", level):
-    print(level); raise SystemExit
-major, minor, patch = (int(p) for p in current.split("."))
-print({"major": f"{major+1}.0.0",
-       "minor": f"{major}.{minor+1}.0",
-       "patch": f"{major}.{minor}.{patch+1}"}[level])
+if level in ("major", "minor", "patch"):
+    if "-" in current:
+        raise SystemExit(f"package.json holds the pre-release {current}; give the next version explicitly.")
+    major, minor, patch = (int(p) for p in current.split("."))
+    level = {"major": f"{major+1}.0.0",
+             "minor": f"{major}.{minor+1}.0",
+             "patch": f"{major}.{minor}.{patch+1}"}[level]
+if not sv.SEMVER.match(level):
+    raise SystemExit(f"'{level}' is not x.y.z or x.y.z-(pre|rc|exp).N with N from 1.")
+if sv.as_tuple(level) <= sv.as_tuple(current):
+    raise SystemExit(f"{level} is not newer than the current {current}.")
+print(level)
 PY
-)"
+)" || die "could not work out the next version."
 
-[ "$NEXT" != "$CURRENT" ] || die "$NEXT is already the current version."
+PRERELEASE=0
+case "$NEXT" in *-*) PRERELEASE=1 ;; esac
 git rev-parse --verify --quiet "refs/tags/v$NEXT" >/dev/null && die "tag v$NEXT already exists."
 
 note "current $CURRENT  ->  next $NEXT"
+if [ "$PRERELEASE" -eq 1 ]; then
+    label="${NEXT#*-}"
+    note "$NEXT is a pre-release: unshipped rules stay put, and npm publishes it under the '${label%%.*}' dist-tag"
+    PENDING_RULES=0
+fi
 [ "$PENDING_RULES" -gt 0 ] && note "$PENDING_RULES unshipped rule(s) will move into AnalyzerReleases.Shipped.md"
 
 

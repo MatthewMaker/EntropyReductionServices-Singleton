@@ -46,6 +46,31 @@ promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocke
 moves them into `AnalyzerReleases.Shipped.md` under the new version as part of the release commit. Pushing is a separate flag: a
 local tag is trivially deletable, a pushed one triggers publication.
 
+### Pre-releases
+
+```sh
+scripts/release.sh 3.0.0-pre.1 --execute --push
+```
+
+A pre-release takes one of the suffixes Unity's package validation accepts — `-pre.N`, `-rc.N` or
+`-exp.N`, with N from 1 — and is always given as an explicit version, as is whatever follows it:
+`major`/`minor`/`patch` are refused while `package.json` holds a pre-release. It differs from a
+release in three places:
+
+- `release.sh` leaves `AnalyzerReleases.Unshipped.md` alone; its rules ship with the release the
+  pre-release leads to.
+- `release.yml` creates a GitHub *pre-release*, never shown as the latest release, and publishes
+  to Verdaccio under the npm dist-tag named by the label (`pre`, `rc`, `exp`), so `latest` stays
+  on the last release.
+- OpenUPM's `minVersion: 3.0.0` excludes every 3.0.0 pre-release, since semver sorts them below it.
+
+Consumers see pre-release versions in the Package Manager window only with *Project Settings >
+Package Manager > Enable Pre-release Packages* on; a version named explicitly in `manifest.json`
+resolves regardless.
+
+`CommittedAnalyzerVersionTests` compares the DLL's informational version, which keeps the suffix:
+its assembly version reads `3.0.0.0` for every 3.0.0 pre-release alike.
+
 The manual steps it automates, for reference — steps 2 and 3 are the ones that silently produce
 a broken package if skipped:
 
