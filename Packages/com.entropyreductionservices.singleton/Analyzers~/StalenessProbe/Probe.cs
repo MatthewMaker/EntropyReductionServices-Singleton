@@ -46,16 +46,6 @@ namespace Probe
         private void OnValidate() { Bus.Instance.Stop(); }       // ERS0008 (serialization callback)
     }
 
-    public class Ers0010 : UnityEngine.MonoBehaviour
-    {
-        private void Awake() { Board.Instance.Stop(); }         // ERS0010 (passive read while waking)
-    }
-
-    public class Board : MonoBehaviourSingletonPassive<Board>
-    {
-        public void Stop() { }
-    }
-
     public class Ers0009 : Bus
     {
         public void Hide() { hideFlags = UnityEngine.HideFlags.DontSave; }   // ERS0009

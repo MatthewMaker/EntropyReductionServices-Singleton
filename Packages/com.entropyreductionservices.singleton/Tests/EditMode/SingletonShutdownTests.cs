@@ -92,15 +92,5 @@ namespace EntropyReductionServices.Singletons.Tests
                 "'?.' tests the reference, so it invokes rather than short-circuiting");
         }
 
-        /// <summary>The passive flavour shares the tombstone, since it shares the base's cache.</summary>
-        [Test]
-        public void LastKnown_OnPassiveFlavour_SurvivesDestruction()
-        {
-            var created = Fixtures.Author<TombstonePassive>(nameof(LastKnown_OnPassiveFlavour_SurvivesDestruction));
-            Object.DestroyImmediate(created.gameObject);
-
-            Assert.IsFalse(TombstonePassive.Exists);
-            Assert.IsTrue(ReferenceEquals(created, TombstonePassive.Exposed));
-        }
     }
 }

@@ -115,22 +115,5 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             Object.DestroyImmediate(parent);
         }
 
-        [Test]
-        public void PassivePersistent_Awake_MovesTheInstanceToDontDestroyOnLoad()
-        {
-            var probe = Probes.AuthorIn<PassivePersistentGoesToDdol>(_scene, "Probe");
-            Assert.IsTrue(Probes.IsPersistent(probe.gameObject));
-        }
-
-        [UnityTest]
-        public IEnumerator PassivePersistent_SurvivesTheUnloadOfItsScene()
-        {
-            var probe = Probes.AuthorIn<PassivePersistentSurvives>(_scene, "Probe");
-
-            yield return Probes.UnloadAndWait(_scene);
-
-            Assert.IsTrue(probe != null);
-            Assert.AreSame(probe, PassivePersistentSurvives.Instance);
-        }
     }
 }

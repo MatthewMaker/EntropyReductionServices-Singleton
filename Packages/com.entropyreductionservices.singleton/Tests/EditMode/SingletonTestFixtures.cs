@@ -1,7 +1,3 @@
-// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
-// file names them on purpose.
-#pragma warning disable CS0618
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -102,7 +98,7 @@ namespace EntropyReductionServices.Singletons.Tests
     // Probes for the editor-side shared-GameObject validator. No [ExecuteAlways]: the validator inspects
     // authored components, and running their Awake would claim slots these tests never use.
     internal class ValidatorStatelessSingleton : MonoBehaviourSingletonPersistent<ValidatorStatelessSingleton> { }
-    internal class ValidatorSecondSingleton : MonoBehaviourSingletonPassive<ValidatorSecondSingleton> { }
+    internal class ValidatorSecondSingleton : MonoBehaviourSingleton<ValidatorSecondSingleton> { }
 
     internal class ValidatorStatefulSingleton : MonoBehaviourSingletonPersistent<ValidatorStatefulSingleton>
     {
@@ -163,15 +159,6 @@ namespace EntropyReductionServices.Singletons.Tests
         protected override bool DestroyWholeGameObject => false;
     }
 
-    // --- MonoBehaviourSingletonPassive<T> -----------------------------------------------------
-
-    [ExecuteAlways] internal class PassiveNullUntilAwake : MonoBehaviourSingletonPassive<PassiveNullUntilAwake> { }
-    [ExecuteAlways] internal class PassiveNeverCreates : MonoBehaviourSingletonPassive<PassiveNeverCreates> { }
-    [ExecuteAlways] internal class PassiveClaims : MonoBehaviourSingletonPassive<PassiveClaims> { }
-    [ExecuteAlways] internal class PassiveDedupes : MonoBehaviourSingletonPassive<PassiveDedupes> { }
-    [ExecuteAlways] internal class PassiveReleases : MonoBehaviourSingletonPassive<PassiveReleases> { }
-    [ExecuteAlways] internal class PassiveAvailability : MonoBehaviourSingletonPassive<PassiveAvailability> { }
-
     // --- Shutdown tombstone (LastKnown) --------------------------------------------------------
 
     /// <summary>
@@ -198,16 +185,4 @@ namespace EntropyReductionServices.Singletons.Tests
     {
         internal static TombstoneUnityEquality Exposed => LastKnown;
     }
-
-    [ExecuteAlways]
-    internal class TombstonePassive : MonoBehaviourSingletonPassive<TombstonePassive>
-    {
-        internal static TombstonePassive Exposed => LastKnown;
-    }
-
-    // --- MonoBehaviourSingletonPassivePersistent<T> -------------------------------------------
-
-    [ExecuteAlways] internal class PassivePersistentClaims : MonoBehaviourSingletonPassivePersistent<PassivePersistentClaims> { }
-    [ExecuteAlways] internal class PassivePersistentDedupes : MonoBehaviourSingletonPassivePersistent<PassivePersistentDedupes> { }
-    [ExecuteAlways] internal class PassivePersistentNeverCreates : MonoBehaviourSingletonPassivePersistent<PassivePersistentNeverCreates> { }
 }

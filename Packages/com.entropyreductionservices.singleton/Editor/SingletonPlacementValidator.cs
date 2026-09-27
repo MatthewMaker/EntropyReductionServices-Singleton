@@ -135,13 +135,8 @@ namespace EntropyReductionServices.Singletons.Editor
         /// </summary>
         private static bool IsSingleton(Type type) => DerivesFrom(type, typeof(MonoBehaviourSingletonBase<>));
 
-        /// <summary>True for the flavours that call DontDestroyOnLoad on their owner.</summary>
-        // The deprecated passive-persistent flavour still persists its owner until it is removed.
-#pragma warning disable CS0618
-        private static bool IsPersistent(Type type) =>
-            DerivesFrom(type, typeof(MonoBehaviourSingletonPersistent<>)) ||
-            DerivesFrom(type, typeof(MonoBehaviourSingletonPassivePersistent<>));
-#pragma warning restore CS0618
+        /// <summary>True for the flavour that calls DontDestroyOnLoad on its owner.</summary>
+        private static bool IsPersistent(Type type) => DerivesFrom(type, typeof(MonoBehaviourSingletonPersistent<>));
 
         private static bool DerivesFrom(Type type, Type openBaseDefinition)
         {

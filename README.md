@@ -76,9 +76,6 @@ carrying inspector state or scene references, mark the type
 `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`: `Instance` then resolves from the scene
 only, and throws if nothing was authored rather than conjuring a stand-in.
 
-`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` are deprecated
-in favour of `FindOnly`, and will be removed in 3.0.0.
-
 **[Read the full documentation →](Packages/com.entropyreductionservices.singleton/Documentation~/singletons.md)**
 for choosing between them, the lifecycle walkthrough, edit-mode behaviour, configuration
 attributes, and the things this deliberately will not do.
@@ -129,15 +126,14 @@ Both routes give a versioned, resolvable dependency that upgrades and rolls back
 
 ## Analyzers
 
-Ten Roslyn rules ship with the package and apply to your assembly automatically once it
+Nine Roslyn rules ship with the package and apply to your assembly automatically once it
 references `EntropyReductionServices.Singletons` — no asset labels, no manifest entries, nothing
 copied into your `Assets` folder. They catch the contract violations that are statically
 checkable: a missing or misplaced `base.Awake()`, caching `Instance` in a field, unguarded teardown
-access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization callback, a passive `Instance` read
-while objects are still waking, `Awake` declared without `override`, and `hideFlags` set on a
-singleton.
+access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization
+callback, `Awake` declared without `override`, and `hideFlags` set on a singleton.
 
-All ten ship as warnings, because they arrive with your first reference to the package rather
+All nine ship as warnings, because they arrive with your first reference to the package rather
 than by opt-in and should not break a build you did not ask to have linted. Escalating them in
 your own project is a three-line `Default.ruleset`. See
 [analyzers.md](Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md).

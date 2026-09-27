@@ -139,10 +139,6 @@ namespace EntropyReductionServices.Analyzers
         /// return null there, so the operator is dead; and inside teardown it does not protect
         /// anything, which ERS0003 covers. Either way it tells a reader the value may be null,
         /// which for this flavour is never the useful thing to believe.
-        ///
-        /// Deliberately silent for the passive flavours, whose Instance IS null until an Awake
-        /// claims the slot. There '?.' is a correct guard, and flagging it would fire hardest on
-        /// the one flavour that needs it.
         /// </summary>
         public static readonly DiagnosticDescriptor RedundantNullConditional = Rule(
             id: "ERS0006",
@@ -153,15 +149,12 @@ namespace EntropyReductionServices.Analyzers
                          "return null while the application is running, and during teardown it " +
                          "returns the destroyed component, which '?.' does not stop because the " +
                          "operator tests the reference rather than Unity's == overload. The " +
-                         "operator therefore never does what it appears to do on this flavour. " +
-                         "Passive singletons are a different case and are not reported: their " +
-                         "Instance is null until a component's Awake claims the slot.");
+                         "operator therefore never does what it appears to do on this flavour.");
 
         /// <summary>
         /// ERS0008 — a lazy singleton's Instance read from OnValidate or a serialization callback.
         /// A first read may search the scene and create a GameObject, and Unity does not support
-        /// either while it is (de)serializing. Passive flavours are not reported: their Instance
-        /// only reads the slot.
+        /// either while it is (de)serializing.
         /// </summary>
         public static readonly DiagnosticDescriptor SerializationCallbackAccess = Rule(
             id: "ERS0008",
@@ -192,25 +185,6 @@ namespace EntropyReductionServices.Analyzers
                          "be saved into the open scene or prefab. The rule reports writes to " +
                          "hideFlags on the singleton component and on its gameObject, spelled " +
                          "directly; a GameObject reached through a local variable is not tracked.");
-
-        /// <summary>
-        /// ERS0010 — a passive singleton's Instance read from another MonoBehaviour's Awake or
-        /// OnEnable. The slot is filled by the singleton's own Awake, and nothing orders that
-        /// before the reader's Awake — or, during a scene load, before the reader's OnEnable.
-        /// </summary>
-        public static readonly DiagnosticDescriptor PassiveWakeRace = Rule(
-            id: "ERS0010",
-            title: "Do not read a passive singleton's Instance from Awake or OnEnable",
-            messageFormat: "'{0}.{1}' reads '{2}.Instance', which is null until '{2}' has run its own " +
-                           "Awake; that order is not guaranteed. Read it from Start",
-            description: "A passive singleton's Instance is filled by that singleton's Awake. Unity " +
-                         "does not order Awake across objects, and during a scene load it runs " +
-                         "each object's OnEnable straight after that object's Awake, before the " +
-                         "next object wakes. A read from another object's Awake or OnEnable " +
-                         "therefore sees null whenever it happens to run first, which can differ " +
-                         "between the editor and a build. Start runs after every object in the " +
-                         "scene has woken. A null check does not fix the race; it turns the " +
-                         "failure into silently skipped work.");
 
         /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which

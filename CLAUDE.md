@@ -8,7 +8,7 @@ A Unity project whose only real content is the embedded package at
 `Packages/com.entropyreductionservices.singleton/`. The surrounding project exists so the package
 can be opened, compiled and tested by a real editor — it is a test harness, not an application.
 
-The package ships two things: the singleton base classes in `Runtime/`, and ten Roslyn analyzers
+The package ships two things: the singleton base classes in `Runtime/`, and nine Roslyn analyzers
 that enforce their contract in *consuming* assemblies.
 
 ## Branching and releases
@@ -206,7 +206,7 @@ page appears: the `openupm` job asks OpenUPM to publish the pushed tag, and for 
   is compiled into `StalenessProbe` and embedded as a resource into the analyzer tests, which
   prepend it to every snippet. Both used to carry their own copy with a comment asking the next
   reader to keep them in step; if the probe modelled a smaller hierarchy than the tests, a rule
-  that only misbehaved on the passive base passed the committed-DLL check.
+  that only misbehaved on one flavour's base passed the committed-DLL check.
 - **`Analyzers~` and `Documentation~` end in `~`, so Unity never imports them.** The analyzer
   *source* is therefore invisible to the editor; only the built DLL at
   `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` is. That DLL is committed on purpose, and

@@ -6,6 +6,15 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking: `MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>`**,
+  deprecated in 2.6.0. Derive from `MonoBehaviourSingleton<T>` or
+  `MonoBehaviourSingletonPersistent<T>` with `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`
+  instead. `Instance` then throws instead of returning null when nothing is authored, and the plain
+  lazy flavour logs duplicates where `MonoBehaviourSingletonPassive<T>` destroyed them.
+- **ERS0010**, which only applied to the passive flavours.
+
 ## [2.6.0]
 
 ### Added

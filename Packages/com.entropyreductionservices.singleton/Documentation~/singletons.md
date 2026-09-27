@@ -101,16 +101,15 @@ accessor that searches, while `IsAvailable`, `Exists` and `TryGetInstance` read 
 loads. Plain `MonoBehaviourSingleton<T>` declares no `Awake` at all, so it does not deduplicate — it
 picks one instance and logs the others. If you want enforcement, use the persistent flavor.
 
-### Deprecated: the passive flavors
+### Migrating from the passive flavors
 
-`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` never create,
-and their `Instance` is null until the singleton's own `Awake` claims the slot — so a read from
-another object's `Awake` or `OnEnable` races it (ERS0010). They are marked `[Obsolete]` and will be
-removed in 3.0.0. To migrate, derive from `MonoBehaviourSingleton<T>` or
-`MonoBehaviourSingletonPersistent<T>` and add `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`.
-Two behaviours change: `Instance` throws instead of returning null when nothing is authored, and
-`MonoBehaviourSingletonPassive<T>` destroyed duplicates where plain `MonoBehaviourSingleton<T>`
-only logs them.
+`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` were removed in
+3.0.0, after being deprecated in 2.6.0. Derive from `MonoBehaviourSingleton<T>` or
+`MonoBehaviourSingletonPersistent<T>` respectively and add
+`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`. Two behaviours change: `Instance` throws
+`MissingSingletonException` instead of returning null when nothing is authored — ask
+`ExistsOrFindInScene()` where the singleton is optional — and `MonoBehaviourSingletonPassive<T>`
+destroyed duplicates where plain `MonoBehaviourSingleton<T>` only logs them.
 
 ## The contract
 
@@ -301,8 +300,8 @@ break in a build with these on. Don't match singletons by name.
 
 ## Enforcement
 
-Ten Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
+Nine Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
 covering the rules above that are checkable: the required `base.Awake()` and its position, field
 caching, unguarded teardown access, `?.` on a lazy `Instance`, construction-time and
-serialization-callback access, a passive `Instance` read from `Awake` or `OnEnable`, `Awake`
-declared without `override`, and `hideFlags` set on a singleton. See [analyzers.md](analyzers.md).
+serialization-callback access, `Awake` declared without `override`, and `hideFlags` set on a
+singleton. See [analyzers.md](analyzers.md).

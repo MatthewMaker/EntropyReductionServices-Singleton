@@ -26,8 +26,6 @@ this contract a compiler can check.
   scenes or throws `MissingSingletonException`, in play mode and edit mode alike.
 - A persistent singleton is made persistent even when another object resolved it before its own
   `Awake` ran.
-- The deprecated `MonoBehaviourSingletonPassive<T>.Instance` is null until some component's `Awake`
-  claims the slot, and never auto-creates.
 - Nothing is created during teardown: neither after `Application.quitting` has fired, nor in the
   frame in which a scene unload destroyed the singleton.
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
@@ -92,10 +90,6 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   static or serialised field, a field on anything but a `Component`, or any field holding a
   singleton that is not persistent. A private, non-serialised field on a `Component` holding a
   persistent singleton cannot outlive it. ERS0002.
-- **Reading a Passive `Instance` from another object's `Awake` or `OnEnable`.** `Awake` order is
-  undefined, and during a scene load Unity runs each object's `OnEnable` straight after its own
-  `Awake`, before the next object wakes — so both are a race. Use `Start`, which runs only after
-  every object in the scene has woken. ERS0010.
 - **Setting `hideFlags` on a singleton yourself.** The find path depends on them. ERS0009.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
 - **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged on any flavour

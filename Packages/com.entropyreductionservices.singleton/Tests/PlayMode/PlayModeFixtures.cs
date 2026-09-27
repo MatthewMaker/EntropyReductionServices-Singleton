@@ -1,7 +1,3 @@
-// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
-// file names them on purpose.
-#pragma warning disable CS0618
-
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -107,9 +103,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
     }
 
-    internal class PassivePersistentGoesToDdol : MonoBehaviourSingletonPassivePersistent<PassivePersistentGoesToDdol> { }
-    internal class PassivePersistentDuplicate : MonoBehaviourSingletonPassivePersistent<PassivePersistentDuplicate> { }
-    internal class PassivePersistentSurvives : MonoBehaviourSingletonPassivePersistent<PassivePersistentSurvives> { }
+    internal class PersistentDuplicate : MonoBehaviourSingletonPersistent<PersistentDuplicate> { }
 
     // --- Scene-unload teardown ------------------------------------------------------------------
 
@@ -168,9 +162,12 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
     internal class UnloadDdolSurvivesFilter : MonoBehaviourSingletonPersistent<UnloadDdolSurvivesFilter> { }
 
-    internal class SharedObjectDuplicate : MonoBehaviourSingletonPassive<SharedObjectDuplicate> { }
-    internal class SharedObjectBystander : MonoBehaviourSingletonPassive<SharedObjectBystander> { }
-    internal class SharedObjectAlone : MonoBehaviourSingletonPassive<SharedObjectAlone> { }
+    // The duplicate and the lone singleton need a flavour that destroys duplicates, which only the
+    // persistent one does. The bystander must not persist, or it would rebuild itself on a new
+    // object and the test could not tell that from being destroyed, so it is the plain flavour.
+    internal class SharedObjectDuplicate : MonoBehaviourSingletonPersistent<SharedObjectDuplicate> { }
+    internal class SharedObjectBystander : MonoBehaviourSingleton<SharedObjectBystander> { }
+    internal class SharedObjectAlone : MonoBehaviourSingletonPersistent<SharedObjectAlone> { }
 
     // Extraction probes. Stateless: nothing Unity would serialize, so rebuilding on a dedicated
     // GameObject loses nothing and the runtime is allowed to do it.
@@ -186,5 +183,4 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }
-    internal class PassiveAvailable : MonoBehaviourSingletonPassive<PassiveAvailable> { }
 }

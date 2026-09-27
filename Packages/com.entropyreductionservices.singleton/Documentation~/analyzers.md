@@ -1,6 +1,6 @@
 # Singleton analyzers
 
-Ten rules enforcing [the contract](contract.md). They ship
+Nine rules enforcing [the contract](contract.md). They ship
 as `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` and apply to this package's assembly **and to
 every assembly that references it** — that scoping is Unity's documented behaviour for an analyzer
 sitting in or under a folder containing an `.asmdef`, and it is why the DLL lives beside the
@@ -18,7 +18,6 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0007 | Warning | Singleton base call is in the wrong position |
 | ERS0008 | Warning | Do not read a lazy singleton's `Instance` from a serialization callback |
 | ERS0009 | Warning | Do not set `hideFlags` on a singleton |
-| ERS0010 | Warning | Do not read a passive singleton's `Instance` from `Awake` or `OnEnable` |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -57,11 +56,11 @@ outlive the singleton it holds:
   tied to a scene, so nothing ends its lifetime alongside the singleton's;
 - **a serialized field** (`[SerializeField]`, or public without `[NonSerialized]`) — in edit mode it
   can write a reference to a transient, never-saved singleton into the scene;
-- **a field holding a singleton that is not persistent** — `MonoBehaviourSingleton<T>` and
-  `MonoBehaviourSingletonPassive<T>` die with their scene, and the field keeps the dead object.
+- **a field holding a singleton that is not persistent** — `MonoBehaviourSingleton<T>` dies with
+  its scene, and the field keeps the dead object.
 
 What remains is not reported: a private, non-serialized field on a `Component`, holding a
-`MonoBehaviourSingletonPersistent<T>` or `MonoBehaviourSingletonPassivePersistent<T>`. The holder
+`MonoBehaviourSingletonPersistent<T>`. The holder
 dies with its scene or at quit, and the singleton outlives both. Locals are not reported either:
 
 ```csharp
@@ -158,14 +157,6 @@ AudioBus.Instance.Play(clip);        // not AudioBus.Instance?.Play(clip)
 Inside `OnDestroy` or `OnApplicationQuit` the same expression is reported as ERS0003 instead —
 one diagnostic, the more serious reading.
 
-**Passive singletons are not reported.** `MonoBehaviourSingletonPassive<T>.Instance` is null until
-some component's `Awake` claims the slot, so `?.` there is a correct guard and the rule stays
-silent:
-
-```csharp
-ScoreBoard.Instance?.Refresh();      // fine: passive, may genuinely be null
-```
-
 ## ers0007 — put the base call in the right place
 
 ERS0001 asks only whether the base call happens. This asks where. Both of the following satisfy
@@ -223,8 +214,7 @@ private void OnValidate()
 `OnValidate` is reported on any `UnityEngine.Object`, the other two on any type implementing
 `ISerializationCallbackReceiver`. A read inside a lambda, anonymous method or local function is
 not reported, since that is how the deferral is written and the analyzer cannot tell a deferred
-delegate from one invoked on the spot. The passive flavours are not reported: their `Instance`
-reads the slot and neither searches nor creates.
+delegate from one invoked on the spot.
 
 ## ers0009 — do not set `hideFlags` on a singleton
 
@@ -241,34 +231,14 @@ Plain and compound assignments (`|=`, `&=`, `^=`) are reported, on the component
 `gameObject`, when spelled directly. A `GameObject` reached through a local variable or a field is
 not followed. Reading `hideFlags` is fine.
 
-## ers0010 — no passive `Instance` in `Awake` or `OnEnable`
+## ers0010 — removed
 
-The passive flavours are deprecated; `[SingletonCreation(SingletonCreationPolicy.FindOnly)]` on a
-lazy singleton resolves by scene search and has no such race. Until they are removed:
-
-A passive singleton's `Instance` is null until the singleton's own `Awake` claims the slot. Unity
-does not order `Awake` across objects, and during a scene load it runs each object's `OnEnable`
-straight after that object's `Awake`, before the next object wakes. So a read from another
-object's `Awake` or `OnEnable` sees null whenever that object happens to wake first — and which
-one does can differ between the editor and a build:
-
-```csharp
-private void OnEnable()
-{
-    Scoreboard.Instance.Register(this);   // ERS0010 — Scoreboard may not have woken yet
-}
-```
-
-Read it from `Start`, which runs after every object in the scene has woken:
-
-```csharp
-private void Start() => Scoreboard.Instance.Register(this);
-```
-
-A null check is still reported: it does not fix the race, only turns a throw into silently skipped
-work. `TryGetInstance` and `IsAvailable` are not reported, since they are not `Instance` reads.
-Neither are the singleton's own `Awake` (after `base.Awake()`, the slot is already its own), a lazy
-`Instance` (which finds or creates the singleton), or a read inside a lambda or local function.
+Removed in 3.0.0 along with `MonoBehaviourSingletonPassive<T>` and
+`MonoBehaviourSingletonPassivePersistent<T>`, the only flavours it applied to. It reported a passive
+`Instance` read from another object's `Awake` or `OnEnable`, which raced the singleton's own
+`Awake`. `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`, their replacement, resolves by
+scene search and has no such race. See [migrating from the passive
+flavors](singletons.md#migrating-from-the-passive-flavors).
 
 ## Retuning severities
 

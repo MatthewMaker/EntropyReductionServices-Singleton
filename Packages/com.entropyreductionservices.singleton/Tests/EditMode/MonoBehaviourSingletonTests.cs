@@ -6,7 +6,7 @@ namespace EntropyReductionServices.Singletons.Tests
     /// <summary>
     /// The lazy, auto-creating flavour: resolve from the loaded scenes, then Resources, then a
     /// bare GameObject. This flavour declares no Awake, so nothing here exercises slot-claiming;
-    /// that belongs to the Persistent and Passive tests.
+    /// that belongs to the Persistent tests.
     /// </summary>
     public class MonoBehaviourSingletonTests
     {
