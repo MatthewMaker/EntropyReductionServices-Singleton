@@ -218,32 +218,20 @@ definitions are committed under `.github/rulesets/` as a record:
 - **Actions:** every action must be pinned to a full-length commit SHA, and workflows on pull
   requests from all external contributors need approval. The default `GITHUB_TOKEN` is read-only.
 
-**Still to do: register the package with OpenUPM** at https://openupm.com/packages/add/. The form
-reads `package.json` from `main` on GitHub, so push any description change first. Fill it in as:
+**OpenUPM.** Registered through [openupm/openupm#6996](https://github.com/openupm/openupm/pull/6996),
+merged 2026-09-27, as `data/packages/com.entropyreductionservices.singleton.yml`: `trackingMode:
+githubRelease` with no asset name (every release carries exactly one `.tgz`, which OpenUPM publishes
+as-is, signature included), `minVersion: 3.0.0`, `readme: main:README.md`, topic `utilities`. So 2.x
+and the 3.0.0 pre-releases stay on GitHub Releases and Verdaccio only. (No tag before 2.6.0 has a
+signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite commit
+that is not in this repository, so it was not backfilled.) To change any of these, open a PR
+against that file.
 
-- **Repository** `MatthewMaker/EntropyReductionServices-Singleton`, then *Go*; branch `main`.
-- **readme.md** `README.md` at the root, not the package's: the package README links to
-  `Documentation~/…` relative to its own folder, the root one relative to the repository.
-- **Discovered by** `MatthewMaker`. The licence (`MIT License`) is filled in from the repository.
-- **Git tag prefix** and **Git tag ignore pattern** empty.
-- **Minimal version to build** `3.0.0`, so 3.0.0 is the first version OpenUPM publishes; 2.x and
-  the 3.0.0 pre-releases stay on GitHub Releases and Verdaccio only. (No tag before 2.6.0 has a
-  signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite
-  commit that is not in this repository, so it was not backfilled.)
-- **Tracking mode** *publish GitHub Release asset*, so OpenUPM publishes the signed tarball rather
-  than packing the tag itself. **GitHub Release asset name** empty: every release carries exactly
-  one `.tgz`, which is the case the form says to leave it empty for.
-- **Cover image** empty; **Topics** *Utilities* only — OpenUPM removes packages for topic spam.
-
-*Submit metadata* opens the YAML in GitHub; commit it with the default `Create ...yml` message to
-open the PR. Push no `v3.*` release tag until that PR is merged, or OpenUPM's default tracker can
-publish an unsigned build first. Once merged, nothing is built until 3.0.0 is tagged, and OpenUPM
-removes packages with no release within three months, so tag it soon after.
-
-Set `gh variable set OPENUPM_ENABLED --body true` just before tagging v3.0.0, not when the package
-page appears: the `openupm` job asks OpenUPM to publish the pushed tag, and for a tag below
-`minVersion`, such as a 3.0.0 pre-release, there is nothing to publish — what the action reports
-then is untested.
+**Still to do: tag 3.0.0 before 2026-12-27.** OpenUPM removes a package with no published version
+within three months of registration, and nothing below `minVersion` is built. Set
+`gh variable set OPENUPM_ENABLED --body true` just before tagging it: the `openupm` job asks OpenUPM
+to publish the pushed tag, and for a tag below `minVersion`, such as a 3.0.0 pre-release, there is
+nothing to publish — what the action reports then is untested.
 
 ## Non-obvious repo facts
 
@@ -282,8 +270,7 @@ then is untested.
 - **Three workflows.** `analyzer.yml` runs on pushes to `main`, `v*` tags, pull requests and manual
   dispatch. `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) runs on pushes to `main`,
   tags and manual dispatch. OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather
-  than a disabled workflow, because it returns `404 PackageNotFound` until the package is
-  registered.
+  than a disabled workflow; it stays off until 3.0.0, the first version OpenUPM will build.
   `.github/dependabot.yml` opens a weekly grouped PR moving the SHA-pinned actions forward.
 - **`ci.yml` holds the Unity job despite the name.** It was kept at that path while disabled,
   because GitHub keys a workflow and its disabled state to the file path. Its job skips pull

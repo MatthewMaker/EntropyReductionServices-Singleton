@@ -223,8 +223,8 @@ jobs:
           fi
 
   openupm:
-    # OpenUPM returns 404 PackageNotFound until the package is registered, which needs the repo to
-    # be public. Set the repository variable OPENUPM_ENABLED to true once it is.
+    # Off until the repository variable OPENUPM_ENABLED is true. The package is registered with
+    # minVersion 3.0.0, so enable it just before tagging v3.0.0: OpenUPM builds nothing below that.
     #
     # Notifies OpenUPM so it publishes without waiting for its polling pipeline, and reports the
     # result here. It authenticates by GitHub OIDC; there is no token to configure.
