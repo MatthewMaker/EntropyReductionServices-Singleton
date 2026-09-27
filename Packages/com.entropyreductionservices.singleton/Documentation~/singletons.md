@@ -73,9 +73,9 @@ There is one class, `MonoBehaviourSingleton<T>`. Its `Awake` claims the slot and
 duplicates, and two attributes decide the rest.
 
 `Instance` resolves on demand: it searches the loaded scenes, then tries `Resources`, then creates
-a bare GameObject. `Instance` is non-null the entire time the application is running. That suits
-stateless services whose existence is an implementation detail — an audio router, a coroutine
-host, a logging sink.
+a bare GameObject. Under these defaults `Instance` returns a live singleton whenever it is read
+outside teardown. That suits stateless services whose existence is an implementation detail — an
+audio router, a coroutine host, a logging sink.
 
 **Lifetime.** By default a singleton is marked `DontDestroyOnLoad` and lives until the application
 quits. A per-scene object — a level director, a scene's UI root — should instead die with its
@@ -115,9 +115,9 @@ accessor that searches, while `IsAvailable`, `Exists` and `TryGetInstance` read 
 The summary below is what you need to write correct calling code. The complete, normative version
 — every guarantee, constraint, forbidden usage and known gap — is [contract.md](contract.md).
 
-> A live singleton exists for the entire time the application is running, and none exists during
-> teardown. `Instance` never returns null once the singleton has existed: during teardown it
-> hands back the destroyed component instead.
+> Outside teardown, `Instance` returns a live singleton or throws `MissingSingletonException` —
+> never null — and during teardown it creates nothing. There it hands back the destroyed component
+> instead, so `Instance` never returns null once the singleton has existed.
 
 **Teardown** means two windows. The application is quitting, or the active scene — where a
 replacement would be created — is being unloaded. In both, `Instance` refuses to build a

@@ -18,10 +18,15 @@ this contract a compiler can check.
 
 **Lifetime**
 
-- A live `MonoBehaviourSingleton<T>` exists for the whole time the application is running.
-- `Instance` never returns null once the singleton has existed. During teardown it returns the
-  component that held the slot — a live C# object whose native peer is gone — so a bare
-  dereference reaches something. See [Teardown](#teardown) for the limits.
+- Outside teardown, `Instance` returns a live singleton or throws `MissingSingletonException`;
+  it never returns null. It throws only when creation is forbidden — `[SingletonCreation(FindOnly)]`,
+  or a `[SingletonEditMode]` policy outside play mode — and no instance is in the loaded scenes.
+  Under the default policies it always returns a live one.
+- During teardown `Instance` returns the component that last held the slot — a live C# object
+  whose native peer is gone — so a bare dereference reaches something. It is null only if the
+  singleton never existed. See [Teardown](#teardown) for the limits.
+- A singleton with the default Application lifetime lives until the application quits. One with a
+  Scene lifetime is destroyed with its scene, and the next read resolves afresh.
 - Under `[SingletonCreation(FindOnly)]` nothing is ever created: `Instance` resolves from the loaded
   scenes or throws `MissingSingletonException`, in play mode and edit mode alike.
 - A singleton with the default Application lifetime is made persistent even when another object

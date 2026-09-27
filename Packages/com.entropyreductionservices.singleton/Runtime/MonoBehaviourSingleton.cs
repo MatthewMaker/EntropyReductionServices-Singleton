@@ -983,9 +983,9 @@ namespace EntropyReductionServices.Singletons
         /// <summary>
         /// True when Instance can currently hand back a live object.
         ///
-        /// This is the single predicate behind the contract: a live singleton exists for the
-        /// entire time the application is running, and none exists during teardown — application
-        /// quit, or an unload of the active scene. Code that runs then —
+        /// This is the single predicate behind the contract: outside teardown Instance can hand
+        /// back a live object, and during teardown — application quit, or an unload of the active
+        /// scene — it cannot. Code that runs then —
         /// OnDestroy, OnDisable, OnApplicationQuit, coroutine cleanup, pooled object return paths
         /// — should test this or use TryGetInstance. Code that runs during normal operation does
         /// not need to check anything.
@@ -1012,7 +1012,9 @@ namespace EntropyReductionServices.Singletons
         /// <summary>
         /// The singleton, resolved from the loaded scenes, then Resources, then a new GameObject.
         ///
-        /// CONTRACT: a live singleton exists for the entire time the application is running.
+        /// CONTRACT: outside teardown this returns a live singleton or throws — never null. It
+        /// throws only when creation is forbidden ([SingletonCreation(FindOnly)], or
+        /// [SingletonEditMode] outside play mode) and no instance is in the loaded scenes.
         /// During teardown — application quit, or an unload of the active scene — this does not
         /// recreate one, because that leaks objects into a scene that is going away
         /// and, on device, can touch XR and audio subsystems that have already shut down. It hands

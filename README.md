@@ -48,9 +48,8 @@ private void OnDestroy()
 
 ## The contract
 
-> A live singleton exists for the entire time the application is running. `Instance` never returns
-> null once the singleton has existed: during teardown it hands back the destroyed component rather
-> than creating a replacement.
+> Outside teardown, `Instance` hands back a live singleton or throws — it never returns null.
+> During teardown it hands back the destroyed component rather than creating a replacement.
 
 Not recreating is not negotiable — recreating a singleton during teardown leaks objects into an
 unloading scene and, on device, can touch XR or audio subsystems that have already shut down. The
