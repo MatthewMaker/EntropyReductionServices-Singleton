@@ -47,4 +47,3 @@ dotnet_diagnostic.ERS0006.severity = warning     # dead null-conditional on a la
 dotnet_diagnostic.ERS0007.severity = error       # base call misordered — silent, order-dependent
 dotnet_diagnostic.ERS0008.severity = error       # lazy Instance read from a serialization callback
 dotnet_diagnostic.ERS0009.severity = warning     # hideFlags set on a singleton
-dotnet_diagnostic.ERS0010.severity = warning     # passive Instance read from Awake/OnEnable

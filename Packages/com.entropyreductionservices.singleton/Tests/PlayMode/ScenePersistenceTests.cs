@@ -84,12 +84,14 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator NonPersistentFlavour_DiesWithItsScene()
+        public IEnumerator SceneLifetime_StaysInItsSceneAndDiesWithIt()
         {
-            // The contrast that gives the test above its meaning: the plain flavour never calls
-            // DontDestroyOnLoad, so it goes down with the scene and releases the slot.
+            // The contrast that gives the test above its meaning: [SingletonLifetime(Scene)] still
+            // claims the slot in Awake but never calls DontDestroyOnLoad, so it goes down with the
+            // scene and releases the slot.
             var probe = Probes.AuthorIn<AutoDiesWithScene>(_scene, "Probe");
-            Assert.IsTrue(AutoDiesWithScene.ExistsOrFindInScene());
+            Assert.IsTrue(AutoDiesWithScene.Exists, "Awake should have claimed the slot");
+            Assert.IsFalse(Probes.IsPersistent(probe.gameObject), "a scene lifetime must not persist");
 
             yield return Probes.UnloadAndWait(_scene);
 
@@ -115,22 +117,5 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             Object.DestroyImmediate(parent);
         }
 
-        [Test]
-        public void PassivePersistent_Awake_MovesTheInstanceToDontDestroyOnLoad()
-        {
-            var probe = Probes.AuthorIn<PassivePersistentGoesToDdol>(_scene, "Probe");
-            Assert.IsTrue(Probes.IsPersistent(probe.gameObject));
-        }
-
-        [UnityTest]
-        public IEnumerator PassivePersistent_SurvivesTheUnloadOfItsScene()
-        {
-            var probe = Probes.AuthorIn<PassivePersistentSurvives>(_scene, "Probe");
-
-            yield return Probes.UnloadAndWait(_scene);
-
-            Assert.IsTrue(probe != null);
-            Assert.AreSame(probe, PassivePersistentSurvives.Instance);
-        }
     }
 }

@@ -6,6 +6,36 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`[SingletonLifetime(SingletonLifetimePolicy.Scene)]`** keeps a singleton in its scene and
+  destroys it with that scene, for per-scene objects such as a level director.
+
+### Changed
+
+- **Breaking: `MonoBehaviourSingleton<T>` declares a virtual `Awake`** that claims the slot and
+  destroys later duplicates, and marks the instance `DontDestroyOnLoad` unless the type has
+  `[SingletonLifetime(SingletonLifetimePolicy.Scene)]`. A subclass declaring `Awake` must now
+  override it and call `base.Awake()` first (ERS0001, ERS0005, ERS0007). Previously this class had
+  no `Awake`, never claimed the slot on its own, logged duplicates instead of destroying them, and
+  died with its scene.
+- **ERS0002** reads `[SingletonLifetime]` to decide whether a singleton can die before a field
+  holding it.
+
+### Removed
+
+- **Breaking: `MonoBehaviourSingletonPersistent<T>`.** `MonoBehaviourSingleton<T>` now does what it
+  did, and lives until the application quits by default.
+- **Breaking: `MonoBehaviourSingletonBase<T>`**, folded into `MonoBehaviourSingleton<T>` now that it
+  has no other subclass. `Exists`, `ExistsOrFindInScene` and `TryGetInstance` are unchanged, and
+  are now declared on `MonoBehaviourSingleton<T>`.
+- **Breaking: `MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>`**,
+  deprecated in 2.6.0. Use `MonoBehaviourSingleton<T>` with
+  `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`, adding
+  `[SingletonLifetime(SingletonLifetimePolicy.Scene)]` in place of the non-persistent one.
+  `Instance` then throws instead of returning null when nothing is authored.
+- **ERS0010**, which only applied to the passive flavours.
+
 ## [2.6.0]
 
 ### Added

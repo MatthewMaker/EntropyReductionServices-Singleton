@@ -49,16 +49,16 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
 
         [UnityTest]
-        public IEnumerator PassivePersistentDuplicate_NeverEntersTheDontDestroyOnLoadScene()
+        public IEnumerator PersistentDuplicate_NeverEntersTheDontDestroyOnLoadScene()
         {
-            // PassivePersistent calls DontDestroy() only when it is the current instance. An
-            // unconditional call would briefly move a doomed duplicate into DontDestroyOnLoad,
-            // where an end-of-frame Destroy still finds it but anything enumerating that scene
-            // in between would not.
-            var first = Probes.AuthorIn<PassivePersistentDuplicate>(_scene, "First");
-            var second = Probes.AuthorIn<PassivePersistentDuplicate>(_scene, "Second");
+            // Awake calls DontDestroy() only on the instance holding the slot. An unconditional
+            // call would briefly move a doomed duplicate into DontDestroyOnLoad, where an
+            // end-of-frame Destroy still finds it but anything enumerating that scene in between
+            // would not.
+            var first = Probes.AuthorIn<PersistentDuplicate>(_scene, "First");
+            var second = Probes.AuthorIn<PersistentDuplicate>(_scene, "Second");
 
-            Assert.AreSame(first, PassivePersistentDuplicate.Instance);
+            Assert.AreSame(first, PersistentDuplicate.Instance);
             Assert.IsTrue(Probes.IsPersistent(first.gameObject), "the winner persists");
             Assert.IsFalse(Probes.IsPersistent(second.gameObject), "the duplicate never does");
 
@@ -85,18 +85,6 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             Assert.IsFalse(AutoAvailable.Exists, "precondition: nothing resolved yet");
             Assert.IsTrue(AutoAvailable.IsAvailable);
             Assert.IsFalse(SingletonRuntime.IsQuitting);
-        }
-
-        [Test]
-        public void PassiveIsAvailable_DuringPlay_IsFalseUntilSomethingClaimsTheSlot()
-        {
-            // The play-mode shortcut above is only honest because Instance creates on demand. A
-            // passive Instance never does, so IsAvailable must track the slot instead.
-            Assert.IsFalse(PassiveAvailable.IsAvailable, "nothing has claimed the slot");
-            Assert.IsNull(PassiveAvailable.Instance);
-
-            Probes.AuthorIn<PassiveAvailable>(_scene, "Probe");
-            Assert.IsTrue(PassiveAvailable.IsAvailable, "and true once Awake has claimed it");
         }
 
         [Test]

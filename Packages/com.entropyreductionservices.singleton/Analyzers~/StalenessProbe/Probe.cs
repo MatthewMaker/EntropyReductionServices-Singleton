@@ -8,7 +8,7 @@ namespace Probe
 {
     using EntropyReductionServices.Singletons;
 
-    public class Bus : MonoBehaviourSingletonPersistent<Bus>
+    public class Bus : MonoBehaviourSingleton<Bus>
     {
         public void Stop() { }
     }
@@ -44,16 +44,6 @@ namespace Probe
     public class Ers0008 : UnityEngine.MonoBehaviour
     {
         private void OnValidate() { Bus.Instance.Stop(); }       // ERS0008 (serialization callback)
-    }
-
-    public class Ers0010 : UnityEngine.MonoBehaviour
-    {
-        private void Awake() { Board.Instance.Stop(); }         // ERS0010 (passive read while waking)
-    }
-
-    public class Board : MonoBehaviourSingletonPassive<Board>
-    {
-        public void Stop() { }
     }
 
     public class Ers0009 : Bus

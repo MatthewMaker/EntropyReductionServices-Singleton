@@ -4,13 +4,12 @@ using UnityEngine;
 namespace EntropyReductionServices.Singletons.Tests
 {
     /// <summary>
-    /// The persistent flavour adds an Awake that claims the slot and destroys later arrivals.
-    /// Surviving a scene load is the other half of its contract and is not reachable from edit
-    /// mode — DontDestroy() returns early when Application.isPlaying is false, because
-    /// DontDestroyOnLoad is a play-mode-only API. That half lives in
-    /// Tests/PlayMode/ScenePersistenceTests.cs.
+    /// Awake claims the slot and destroys later arrivals. Surviving a scene load, the Application
+    /// lifetime's other half, is not reachable from edit mode — DontDestroy() returns early when
+    /// Application.isPlaying is false, because DontDestroyOnLoad is a play-mode-only API. That
+    /// half lives in Tests/PlayMode/ScenePersistenceTests.cs.
     /// </summary>
-    public class MonoBehaviourSingletonPersistentTests
+    public class MonoBehaviourSingletonAwakeTests
     {
         [TearDown]
         public void TearDown()

@@ -130,18 +130,21 @@ namespace EntropyReductionServices.Singletons.Editor
         }
 
         /// <summary>
-        /// True when the type descends from MonoBehaviourSingletonBase&lt;T&gt;. Compared by generic
+        /// True when the type descends from MonoBehaviourSingleton&lt;T&gt;. Compared by generic
         /// type definition: the base is always a constructed generic, never the open definition.
         /// </summary>
-        private static bool IsSingleton(Type type) => DerivesFrom(type, typeof(MonoBehaviourSingletonBase<>));
+        private static bool IsSingleton(Type type) => DerivesFrom(type, typeof(MonoBehaviourSingleton<>));
 
-        /// <summary>True for the flavours that call DontDestroyOnLoad on their owner.</summary>
-        // The deprecated passive-persistent flavour still persists its owner until it is removed.
-#pragma warning disable CS0618
-        private static bool IsPersistent(Type type) =>
-            DerivesFrom(type, typeof(MonoBehaviourSingletonPersistent<>)) ||
-            DerivesFrom(type, typeof(MonoBehaviourSingletonPassivePersistent<>));
-#pragma warning restore CS0618
+        /// <summary>
+        /// True for a singleton that calls DontDestroyOnLoad on its owner: any singleton not marked
+        /// [SingletonLifetime(Scene)]. Reads the attribute the same way the runtime does, inherited.
+        /// </summary>
+        private static bool IsPersistent(Type type)
+        {
+            var lifetime = Attribute.GetCustomAttribute(type, typeof(SingletonLifetimeAttribute), true)
+                as SingletonLifetimeAttribute;
+            return IsSingleton(type) && lifetime?.Policy != SingletonLifetimePolicy.Scene;
+        }
 
         private static bool DerivesFrom(Type type, Type openBaseDefinition)
         {

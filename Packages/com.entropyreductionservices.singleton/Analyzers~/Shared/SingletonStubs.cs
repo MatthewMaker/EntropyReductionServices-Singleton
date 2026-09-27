@@ -6,14 +6,14 @@
 // Instance, which declares the virtual Awake, and which inherits from UnityEngine.MonoBehaviour.
 // Getting that shape wrong would make the tests agree with themselves and with nothing else.
 //
-// Deliberately free of diagnostics: the virtual Awake on the persistent and passive bases is not
-// an override of anything, and no base singleton type declares Awake above them, so neither
+// Deliberately free of diagnostics: the virtual Awake on MonoBehaviourSingleton is not an override
+// of anything, and nothing above it in the stubs declares Awake, so neither
 // ERS0001 nor ERS0005 applies to the stubs themselves.
 //
 // The probe consumes this as compiled source; the test harness embeds it and prepends it to every
 // snippet. Previously both kept their own copy, and a comment asked the next reader to keep them
 // in step — if the probe modelled a smaller hierarchy than the unit tests, a rule that only
-// misbehaved on the passive base would pass the committed-DLL check.
+// misbehaved on one flavour's base would pass the committed-DLL check.
 
 namespace UnityEngine
 {
@@ -42,36 +42,21 @@ namespace UnityEngine
 
 namespace EntropyReductionServices.Singletons
 {
-    public abstract class MonoBehaviourSingletonBase<T> : UnityEngine.MonoBehaviour
-        where T : MonoBehaviourSingletonBase<T>
+    public enum SingletonLifetimePolicy { Application, Scene }
+
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited = true)]
+    public sealed class SingletonLifetimeAttribute : System.Attribute
+    {
+        public SingletonLifetimeAttribute(SingletonLifetimePolicy policy) { }
+    }
+
+    public abstract class MonoBehaviourSingleton<T> : UnityEngine.MonoBehaviour
+        where T : MonoBehaviourSingleton<T>
     {
         public static bool TryGetInstance(out T instance) { instance = null; return false; }
         protected virtual void OnDestroy() { }
-    }
-
-    public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
-        where T : MonoBehaviourSingleton<T>
-    {
-        public static bool IsAvailable { get { return true; } }
-        public static T Instance { get { return null; } }
-    }
-
-    public abstract class MonoBehaviourSingletonPersistent<T> : MonoBehaviourSingleton<T>
-        where T : MonoBehaviourSingletonPersistent<T>
-    {
-        protected virtual void Awake() { }
-    }
-
-    public abstract class MonoBehaviourSingletonPassive<T> : MonoBehaviourSingletonBase<T>
-        where T : MonoBehaviourSingletonPassive<T>
-    {
         public static bool IsAvailable { get { return true; } }
         public static T Instance { get { return null; } }
         protected virtual void Awake() { }
-    }
-
-    public abstract class MonoBehaviourSingletonPassivePersistent<T> : MonoBehaviourSingletonPassive<T>
-        where T : MonoBehaviourSingletonPassivePersistent<T>
-    {
     }
 }

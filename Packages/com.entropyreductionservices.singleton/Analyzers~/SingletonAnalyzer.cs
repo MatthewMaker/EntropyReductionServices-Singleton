@@ -18,28 +18,15 @@ namespace EntropyReductionServices.Analyzers
     {
         // MUST track the runtime type's namespace. GetTypeByMetadataName returns null on a
         // mismatch and Initialize then registers no actions at all, so a stale string here does
-        // not fail the analyzer build or any test — it silently disables all five rules.
+        // not fail the analyzer build or any test — it silently disables every rule.
         // SingletonNamespaceTests pins the other end of this string.
         private const string SingletonBaseMetadataName =
-            "EntropyReductionServices.Singletons.MonoBehaviourSingletonBase`1";
-
-        // The lazy half of the hierarchy. MonoBehaviourSingletonPassive<T> is its sibling, not its
-        // subclass, so deriving from this is exactly the "Instance never returns null outside
-        // teardown" guarantee and cleanly excludes the passive flavours.
-        private const string LazySingletonMetadataName =
             "EntropyReductionServices.Singletons.MonoBehaviourSingleton`1";
 
-        // Instance is null until the singleton's own Awake claims the slot. The passive-persistent
-        // flavour derives from this, so one DerivesFrom check covers both.
-        private const string PassiveMetadataName =
-            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPassive`1";
-
-        // The two flavours that mark themselves DontDestroyOnLoad. Plain MonoBehaviourSingleton<T>
-        // and MonoBehaviourSingletonPassive<T> live in a scene and die with it.
-        private const string PersistentMetadataName =
-            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPersistent`1";
-        private const string PassivePersistentMetadataName =
-            "EntropyReductionServices.Singletons.MonoBehaviourSingletonPassivePersistent`1";
+        // A singleton marks itself DontDestroyOnLoad unless this attribute gives it a Scene lifetime.
+        private const string LifetimeAttributeMetadataName =
+            "EntropyReductionServices.Singletons.SingletonLifetimeAttribute";
+        private const string SceneLifetimeMemberName = "Scene";
 
         private const string MonoBehaviourMetadataName = "UnityEngine.MonoBehaviour";
         private const string ComponentMetadataName = "UnityEngine.Component";
@@ -64,8 +51,7 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.RedundantNullConditional,
                 SingletonDiagnostics.BaseCallOutOfOrder,
                 SingletonDiagnostics.SerializationCallbackAccess,
-                SingletonDiagnostics.HideFlagsAssignment,
-                SingletonDiagnostics.PassiveWakeRace);
+                SingletonDiagnostics.HideFlagsAssignment);
 
         /// <summary>
         /// The Unity and singleton types the rules test against, resolved once per compilation.
@@ -75,10 +61,7 @@ namespace EntropyReductionServices.Analyzers
         private sealed class KnownTypes
         {
             public INamedTypeSymbol SingletonBase;
-            public INamedTypeSymbol LazySingleton;
-            public INamedTypeSymbol Passive;
-            public INamedTypeSymbol Persistent;
-            public INamedTypeSymbol PassivePersistent;
+            public INamedTypeSymbol LifetimeAttribute;
             public INamedTypeSymbol MonoBehaviour;
             public INamedTypeSymbol Component;
             public INamedTypeSymbol UnityObject;
@@ -106,10 +89,7 @@ namespace EntropyReductionServices.Analyzers
                 var known = new KnownTypes
                 {
                     SingletonBase = singletonBase,
-                    LazySingleton = compilation.GetTypeByMetadataName(LazySingletonMetadataName),
-                    Passive = compilation.GetTypeByMetadataName(PassiveMetadataName),
-                    Persistent = compilation.GetTypeByMetadataName(PersistentMetadataName),
-                    PassivePersistent = compilation.GetTypeByMetadataName(PassivePersistentMetadataName),
+                    LifetimeAttribute = compilation.GetTypeByMetadataName(LifetimeAttributeMetadataName),
                     MonoBehaviour = compilation.GetTypeByMetadataName(MonoBehaviourMetadataName),
                     Component = compilation.GetTypeByMetadataName(ComponentMetadataName),
                     UnityObject = compilation.GetTypeByMetadataName(UnityObjectMetadataName),
@@ -282,14 +262,13 @@ namespace EntropyReductionServices.Analyzers
         }
 
         // -----------------------------------------------------------------------------------
-        // ERS0002 / ERS0003 / ERS0004 / ERS0006 / ERS0008 / ERS0010 — reads of a singleton Instance
+        // ERS0002 / ERS0003 / ERS0004 / ERS0006 / ERS0008 — reads of a singleton Instance
         // -----------------------------------------------------------------------------------
 
         /// <summary>
         /// Classifies every read of a singleton's Instance property by the context it appears in.
         /// The cases are mutually exclusive and checked most-severe first: construction-time and
-        /// serialization-time access throw, a passive read during wake-up races, field caching
-        /// goes stale, teardown access may be null.
+        /// serialization-time access throw, field caching goes stale, teardown access may be null.
         /// </summary>
         private static void AnalyzeInstanceAccess(SyntaxNodeAnalysisContext context, KnownTypes known)
         {
@@ -310,11 +289,10 @@ namespace EntropyReductionServices.Analyzers
             var enclosing = FindEnclosingMember(access);
 
             if (TryReportConstructionTime(context, access, enclosing, known.MonoBehaviour, singletonName)) return;
-            if (TryReportSerializationCallback(context, access, receiver, known, singletonName)) return;
-            if (TryReportPassiveWakeRace(context, access, receiver, known, singletonName)) return;
+            if (TryReportSerializationCallback(context, access, known, singletonName)) return;
             if (TryReportFieldCache(context, access, receiver, known, singletonName)) return;
             if (TryReportTeardown(context, access, enclosing, singletonName)) return;
-            TryReportRedundantNullConditional(context, access, receiver, known.LazySingleton, singletonName);
+            TryReportRedundantNullConditional(context, access, singletonName);
         }
 
         /// <summary>
@@ -324,21 +302,12 @@ namespace EntropyReductionServices.Analyzers
         /// reported once, as ERS0003 — the more serious reading, since there the operator looks
         /// like protection and provides none. Outside teardown the same expression is merely dead,
         /// which is what this reports.
-        ///
-        /// Requires the receiver to derive from MonoBehaviourSingleton&lt;T&gt; specifically. The
-        /// passive flavours descend from the shared base instead, and their Instance is genuinely
-        /// null until an Awake claims the slot, so '?.' there is correct and must not be reported.
         /// </summary>
         private static void TryReportRedundantNullConditional(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access,
-            INamedTypeSymbol receiver,
-            INamedTypeSymbol lazySingleton,
             string singletonName)
         {
-            if (lazySingleton == null || receiver == null) return;
-            if (!DerivesFrom(receiver, lazySingleton)) return;
-
             if (!IsNullConditionalReceiver(access, out _)) return;
 
             context.ReportDiagnostic(Diagnostic.Create(
@@ -392,22 +361,17 @@ namespace EntropyReductionServices.Analyzers
         /// ERS0008: a lazy singleton's Instance read directly in OnValidate on a UnityEngine.Object,
         /// or in OnBeforeSerialize / OnAfterDeserialize on an ISerializationCallbackReceiver.
         ///
-        /// Only the lazy flavour is reported, because only its Instance searches and creates; a
-        /// passive Instance reads the slot and nothing else. A read inside a lambda, anonymous
-        /// method or local function is not reported: deferring the work that way —
+        /// A read inside a lambda, anonymous method or local function is not reported: deferring
+        /// the work that way —
         /// EditorApplication.delayCall inside OnValidate — is the fix this rule recommends, and
         /// the syntax cannot tell a deferred delegate from one invoked on the spot.
         /// </summary>
         private static bool TryReportSerializationCallback(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access,
-            INamedTypeSymbol receiver,
             KnownTypes known,
             string singletonName)
         {
-            if (known.LazySingleton == null || receiver == null) return false;
-            if (!DerivesFrom(receiver, known.LazySingleton)) return false;
-
             var method = FindEnclosingMethodOutsideDelegates(access);
             if (method == null) return false;
 
@@ -426,50 +390,6 @@ namespace EntropyReductionServices.Analyzers
 
             context.ReportDiagnostic(Diagnostic.Create(
                 SingletonDiagnostics.SerializationCallbackAccess,
-                access.GetLocation(),
-                owner.Name,
-                name,
-                singletonName));
-            return true;
-        }
-
-        private const string AwakeName = "Awake";
-        private const string OnEnableName = "OnEnable";
-
-        /// <summary>
-        /// ERS0010: a passive singleton's Instance read directly in the Awake or OnEnable of a
-        /// MonoBehaviour other than that singleton. The slot is claimed in the singleton's own
-        /// Awake, Awake order across objects is undefined, and during a scene load each object's
-        /// OnEnable runs straight after its own Awake — so either read races the claim.
-        ///
-        /// The singleton's own type and its subclasses are exempt: there base.Awake() has already
-        /// claimed the slot. A guard such as 'Board.Instance != null' is still reported, because
-        /// losing the race then silently skips the work instead of throwing. IsAvailable and
-        /// TryGetInstance are not Instance reads and are not reported. As with ERS0008, a read in
-        /// a lambda or local function is left alone, since it usually runs later.
-        /// </summary>
-        private static bool TryReportPassiveWakeRace(
-            SyntaxNodeAnalysisContext context,
-            MemberAccessExpressionSyntax access,
-            INamedTypeSymbol receiver,
-            KnownTypes known,
-            string singletonName)
-        {
-            if (known.Passive == null || known.MonoBehaviour == null || receiver == null) return false;
-            if (!DerivesFrom(receiver, known.Passive)) return false;
-
-            var method = FindEnclosingMethodOutsideDelegates(access);
-            if (method == null) return false;
-
-            var name = method.Identifier.ValueText;
-            if (name != AwakeName && name != OnEnableName) return false;
-
-            var owner = context.SemanticModel.GetDeclaredSymbol(method, context.CancellationToken)?.ContainingType;
-            if (owner == null || !DerivesFrom(owner, known.MonoBehaviour)) return false;
-            if (DerivesFrom(owner, receiver)) return false;
-
-            context.ReportDiagnostic(Diagnostic.Create(
-                SingletonDiagnostics.PassiveWakeRace,
                 access.GetLocation(),
                 owner.Name,
                 name,
@@ -524,7 +444,7 @@ namespace EntropyReductionServices.Analyzers
         /// <summary>
         /// Why a field holding this singleton can end up pointing at a dead one, or null when it
         /// cannot. The one exempt shape is a private, non-serialized instance field on a
-        /// Component, holding a persistent singleton: the holder dies with its scene or at quit,
+        /// Component, holding a singleton with the default Application lifetime: the holder dies with its scene or at quit,
         /// and the singleton outlives both. Any doubt — an unresolved type, a missing Unity symbol
         /// — reports, which is the behaviour this rule had before it was narrowed.
         /// </summary>
@@ -544,12 +464,37 @@ namespace EntropyReductionServices.Analyzers
             if (IsSerialized(field, known))
                 return "a serialized field can write a reference to an edit-mode transient into the scene";
 
-            if (singleton == null || !(DerivesFrom(singleton, known.Persistent) ||
-                                       DerivesFrom(singleton, known.PassivePersistent)))
-                return $"'{singletonName}' is not persistent, so a scene change destroys it and the " +
+            if (singleton == null || HasSceneLifetime(singleton, known))
+                return $"'{singletonName}' has a Scene lifetime, so a scene change destroys it and the " +
                        "field keeps the dead object";
 
             return null;
+        }
+
+        /// <summary>
+        /// True when the type or a base carries [SingletonLifetime(Scene)], mirroring the runtime's
+        /// inherited attribute lookup. The nearest declaration wins. An unresolved attribute type
+        /// reports true, so doubt keeps the warning.
+        /// </summary>
+        private static bool HasSceneLifetime(INamedTypeSymbol type, KnownTypes known)
+        {
+            if (known.LifetimeAttribute == null) return true;
+
+            for (var current = type; current != null; current = current.BaseType)
+            {
+                foreach (var data in current.GetAttributes())
+                {
+                    if (!SymbolEqualityComparer.Default.Equals(data.AttributeClass, known.LifetimeAttribute)) continue;
+                    if (data.ConstructorArguments.Length != 1) return true;
+
+                    var argument = data.ConstructorArguments[0];
+                    var scene = argument.Type?.GetMembers(SceneLifetimeMemberName)
+                        .OfType<IFieldSymbol>().FirstOrDefault();
+                    return scene == null || Equals(argument.Value, scene.ConstantValue);
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -829,8 +774,8 @@ namespace EntropyReductionServices.Analyzers
 
         /// <summary>
         /// True when the type or any of its bases is a construction of the given open generic
-        /// type. Comparison is against OriginalDefinition, so MonoBehaviourSingletonBase&lt;Foo&gt;
-        /// matches the unbound MonoBehaviourSingletonBase&lt;&gt;.
+        /// type. Comparison is against OriginalDefinition, so MonoBehaviourSingleton&lt;Foo&gt;
+        /// matches the unbound MonoBehaviourSingleton&lt;&gt;.
         /// </summary>
         private static bool DerivesFrom(INamedTypeSymbol type, INamedTypeSymbol baseType)
         {

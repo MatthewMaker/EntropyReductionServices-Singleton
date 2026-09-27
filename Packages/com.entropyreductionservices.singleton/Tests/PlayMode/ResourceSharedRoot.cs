@@ -8,5 +8,5 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     /// Alone in this file, unlike the other probes: Unity only creates the MonoScript a prefab
     /// serializes a reference to when the file is named after the type.
     /// </summary>
-    internal class ResourceSharedRoot : MonoBehaviourSingletonPersistent<ResourceSharedRoot> { }
+    internal class ResourceSharedRoot : MonoBehaviourSingleton<ResourceSharedRoot> { }
 }

@@ -1,7 +1,3 @@
-// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
-// file names them on purpose.
-#pragma warning disable CS0618
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -89,7 +85,7 @@ namespace EntropyReductionServices.Singletons.Tests
             => _messages.Add(exception.ToString());
     }
 
-    // --- MonoBehaviourSingleton<T> (lazy, auto-creating, no Awake) -----------------------------
+    // --- MonoBehaviourSingleton<T>: resolution ------------------------------------------------
 
     [ExecuteAlways] internal class AutoCreates : MonoBehaviourSingleton<AutoCreates> { }
     [ExecuteAlways] internal class AutoStable : MonoBehaviourSingleton<AutoStable> { }
@@ -97,14 +93,15 @@ namespace EntropyReductionServices.Singletons.Tests
     [ExecuteAlways] internal class AutoVirginTryGet : MonoBehaviourSingleton<AutoVirginTryGet> { }
     [ExecuteAlways] internal class AutoAdopts : MonoBehaviourSingleton<AutoAdopts> { }
     [ExecuteAlways] internal class AutoFindsWithoutCreating : MonoBehaviourSingleton<AutoFindsWithoutCreating> { }
-    [ExecuteAlways] internal class AutoDuplicatesSurvive : MonoBehaviourSingleton<AutoDuplicatesSurvive> { }
-    [ExecuteAlways] internal class AutoResolveOrder : MonoBehaviourSingleton<AutoResolveOrder> { }
+    // No [ExecuteAlways]: its Awake would claim the slot and destroy the second instance, and the
+    // test needs two authored instances still unclaimed when Instance first searches.
+    internal class AutoResolveOrder : MonoBehaviourSingleton<AutoResolveOrder> { }
     // Probes for the editor-side shared-GameObject validator. No [ExecuteAlways]: the validator inspects
     // authored components, and running their Awake would claim slots these tests never use.
-    internal class ValidatorStatelessSingleton : MonoBehaviourSingletonPersistent<ValidatorStatelessSingleton> { }
-    internal class ValidatorSecondSingleton : MonoBehaviourSingletonPassive<ValidatorSecondSingleton> { }
+    internal class ValidatorStatelessSingleton : MonoBehaviourSingleton<ValidatorStatelessSingleton> { }
+    internal class ValidatorSecondSingleton : MonoBehaviourSingleton<ValidatorSecondSingleton> { }
 
-    internal class ValidatorStatefulSingleton : MonoBehaviourSingletonPersistent<ValidatorStatefulSingleton>
+    internal class ValidatorStatefulSingleton : MonoBehaviourSingleton<ValidatorStatefulSingleton>
     {
         [SerializeField] private int _configured;
         public int Configured => _configured;
@@ -127,7 +124,8 @@ namespace EntropyReductionServices.Singletons.Tests
     [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
     internal class AutoEditModeFindOnlyAbsent : MonoBehaviourSingleton<AutoEditModeFindOnlyAbsent> { }
 
-    [ExecuteAlways]
+    // No [ExecuteAlways]: an ordinary component's Awake does not run in edit mode, which is what
+    // leaves an authored instance unclaimed until something searches.
     [SingletonEditMode(SingletonEditModePolicy.FindOnly)]
     internal class AutoEditModeFindOnlyAvailability : MonoBehaviourSingleton<AutoEditModeFindOnlyAvailability> { }
 
@@ -149,28 +147,19 @@ namespace EntropyReductionServices.Singletons.Tests
     [SingletonCreation(SingletonCreationPolicy.FindOnly)]
     internal class FindOnlyAvailability : MonoBehaviourSingleton<FindOnlyAvailability> { }
 
-    // --- MonoBehaviourSingletonPersistent<T> --------------------------------------------------
+    // --- MonoBehaviourSingleton<T>: Awake claims the slot and destroys duplicates -------------
 
-    [ExecuteAlways] internal class PersistentClaims : MonoBehaviourSingletonPersistent<PersistentClaims> { }
-    [ExecuteAlways] internal class PersistentDedupes : MonoBehaviourSingletonPersistent<PersistentDedupes> { }
-    [ExecuteAlways] internal class PersistentReleases : MonoBehaviourSingletonPersistent<PersistentReleases> { }
-    [ExecuteAlways] internal class PersistentEditMode : MonoBehaviourSingletonPersistent<PersistentEditMode> { }
+    [ExecuteAlways] internal class PersistentClaims : MonoBehaviourSingleton<PersistentClaims> { }
+    [ExecuteAlways] internal class PersistentDedupes : MonoBehaviourSingleton<PersistentDedupes> { }
+    [ExecuteAlways] internal class PersistentReleases : MonoBehaviourSingleton<PersistentReleases> { }
+    [ExecuteAlways] internal class PersistentEditMode : MonoBehaviourSingleton<PersistentEditMode> { }
 
     /// <summary>Opts out of the whole-GameObject blast radius, so a duplicate loses only itself.</summary>
     [ExecuteAlways]
-    internal class PersistentComponentOnly : MonoBehaviourSingletonPersistent<PersistentComponentOnly>
+    internal class PersistentComponentOnly : MonoBehaviourSingleton<PersistentComponentOnly>
     {
         protected override bool DestroyWholeGameObject => false;
     }
-
-    // --- MonoBehaviourSingletonPassive<T> -----------------------------------------------------
-
-    [ExecuteAlways] internal class PassiveNullUntilAwake : MonoBehaviourSingletonPassive<PassiveNullUntilAwake> { }
-    [ExecuteAlways] internal class PassiveNeverCreates : MonoBehaviourSingletonPassive<PassiveNeverCreates> { }
-    [ExecuteAlways] internal class PassiveClaims : MonoBehaviourSingletonPassive<PassiveClaims> { }
-    [ExecuteAlways] internal class PassiveDedupes : MonoBehaviourSingletonPassive<PassiveDedupes> { }
-    [ExecuteAlways] internal class PassiveReleases : MonoBehaviourSingletonPassive<PassiveReleases> { }
-    [ExecuteAlways] internal class PassiveAvailability : MonoBehaviourSingletonPassive<PassiveAvailability> { }
 
     // --- Shutdown tombstone (LastKnown) --------------------------------------------------------
 
@@ -198,16 +187,4 @@ namespace EntropyReductionServices.Singletons.Tests
     {
         internal static TombstoneUnityEquality Exposed => LastKnown;
     }
-
-    [ExecuteAlways]
-    internal class TombstonePassive : MonoBehaviourSingletonPassive<TombstonePassive>
-    {
-        internal static TombstonePassive Exposed => LastKnown;
-    }
-
-    // --- MonoBehaviourSingletonPassivePersistent<T> -------------------------------------------
-
-    [ExecuteAlways] internal class PassivePersistentClaims : MonoBehaviourSingletonPassivePersistent<PassivePersistentClaims> { }
-    [ExecuteAlways] internal class PassivePersistentDedupes : MonoBehaviourSingletonPassivePersistent<PassivePersistentDedupes> { }
-    [ExecuteAlways] internal class PassivePersistentNeverCreates : MonoBehaviourSingletonPassivePersistent<PassivePersistentNeverCreates> { }
 }

@@ -1,7 +1,3 @@
-// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
-// file names them on purpose.
-#pragma warning disable CS0618
-
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -67,11 +63,11 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
     }
 
-    internal class PersistentSurvives : MonoBehaviourSingletonPersistent<PersistentSurvives> { }
-    internal class PersistentGoesToDdol : MonoBehaviourSingletonPersistent<PersistentGoesToDdol> { }
-    internal class PersistentDetaches : MonoBehaviourSingletonPersistent<PersistentDetaches> { }
-    internal class PersistentDeferredDedupe : MonoBehaviourSingletonPersistent<PersistentDeferredDedupe> { }
-    internal class PersistentFrame : MonoBehaviourSingletonPersistent<PersistentFrame> { }
+    internal class PersistentSurvives : MonoBehaviourSingleton<PersistentSurvives> { }
+    internal class PersistentGoesToDdol : MonoBehaviourSingleton<PersistentGoesToDdol> { }
+    internal class PersistentDetaches : MonoBehaviourSingleton<PersistentDetaches> { }
+    internal class PersistentDeferredDedupe : MonoBehaviourSingleton<PersistentDeferredDedupe> { }
+    internal class PersistentFrame : MonoBehaviourSingleton<PersistentFrame> { }
 
     [SingletonCreation(SingletonCreationPolicy.FindOnly)]
     internal class FindOnlyAbsentInPlay : MonoBehaviourSingleton<FindOnlyAbsentInPlay> { }
@@ -80,10 +76,10 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class FindOnlyAvailableInPlay : MonoBehaviourSingleton<FindOnlyAvailableInPlay> { }
 
     [SingletonCreation(SingletonCreationPolicy.FindOnly)]
-    internal class PersistentFindOnly : MonoBehaviourSingletonPersistent<PersistentFindOnly> { }
+    internal class PersistentFindOnly : MonoBehaviourSingleton<PersistentFindOnly> { }
 
     /// <summary>Records whether its own Awake has run, so a reader can prove it got there first.</summary>
-    internal class PersistentReadBeforeAwake : MonoBehaviourSingletonPersistent<PersistentReadBeforeAwake>
+    internal class PersistentReadBeforeAwake : MonoBehaviourSingleton<PersistentReadBeforeAwake>
     {
         public static bool AwakeRan;
 
@@ -107,9 +103,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
     }
 
-    internal class PassivePersistentGoesToDdol : MonoBehaviourSingletonPassivePersistent<PassivePersistentGoesToDdol> { }
-    internal class PassivePersistentDuplicate : MonoBehaviourSingletonPassivePersistent<PassivePersistentDuplicate> { }
-    internal class PassivePersistentSurvives : MonoBehaviourSingletonPassivePersistent<PassivePersistentSurvives> { }
+    internal class PersistentDuplicate : MonoBehaviourSingleton<PersistentDuplicate> { }
 
     // --- Scene-unload teardown ------------------------------------------------------------------
 
@@ -123,6 +117,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     /// body being copied per test. Both the singleton cache and the counters below are statics on
     /// the closed generic, so two tests sharing one concrete type would see each other's state.
     /// </summary>
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]   // must be destroyed by the unload it witnesses
     internal abstract class TeardownWitness<T> : MonoBehaviourSingleton<T> where T : TeardownWitness<T>
     {
         public static bool SawWindow;
@@ -165,26 +160,30 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         protected override bool ReadsInstance => false;
     }
 
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
     internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
-    internal class UnloadDdolSurvivesFilter : MonoBehaviourSingletonPersistent<UnloadDdolSurvivesFilter> { }
+    internal class UnloadDdolSurvivesFilter : MonoBehaviourSingleton<UnloadDdolSurvivesFilter> { }
 
-    internal class SharedObjectDuplicate : MonoBehaviourSingletonPassive<SharedObjectDuplicate> { }
-    internal class SharedObjectBystander : MonoBehaviourSingletonPassive<SharedObjectBystander> { }
-    internal class SharedObjectAlone : MonoBehaviourSingletonPassive<SharedObjectAlone> { }
+    // The bystander must not persist, or it would rebuild itself on a new object and the test
+    // could not tell that from being destroyed.
+    internal class SharedObjectDuplicate : MonoBehaviourSingleton<SharedObjectDuplicate> { }
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
+    internal class SharedObjectBystander : MonoBehaviourSingleton<SharedObjectBystander> { }
+    internal class SharedObjectAlone : MonoBehaviourSingleton<SharedObjectAlone> { }
 
     // Extraction probes. Stateless: nothing Unity would serialize, so rebuilding on a dedicated
     // GameObject loses nothing and the runtime is allowed to do it.
-    internal class ExtractStateless : MonoBehaviourSingletonPersistent<ExtractStateless> { }
+    internal class ExtractStateless : MonoBehaviourSingleton<ExtractStateless> { }
 
     // Has a serialized field, so extraction must decline and persist the shared GameObject instead.
-    internal class ExtractStateful : MonoBehaviourSingletonPersistent<ExtractStateful>
+    internal class ExtractStateful : MonoBehaviourSingleton<ExtractStateful>
     {
         [SerializeField] private int _configured;
         public int Configured => _configured;
     }
 
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
     internal class AutoDiesWithScene : MonoBehaviourSingleton<AutoDiesWithScene> { }
     internal class AutoAvailable : MonoBehaviourSingleton<AutoAvailable> { }
-    internal class PassiveAvailable : MonoBehaviourSingletonPassive<PassiveAvailable> { }
 }

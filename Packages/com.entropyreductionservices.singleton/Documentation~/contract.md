@@ -1,7 +1,7 @@
 # The contract
 
 What this package guarantees, what it asks of you in return, and where it will not help. The
-companion documents are [singletons.md](singletons.md), which teaches the flavours and why
+companion documents are [singletons.md](singletons.md), which teaches the lifetime and creation policies and why
 they exist, and [analyzers.md](analyzers.md), which documents the rules that enforce the parts of
 this contract a compiler can check.
 
@@ -9,8 +9,8 @@ this contract a compiler can check.
 
 - One well-known access point per component type, correct across scene loads, editor domain
   reload, and application shutdown.
-- Each flavour and creation policy expresses a genuinely different contract, not another spelling
-  of one.
+- One class; each lifetime and creation policy expresses a genuinely different contract, not
+  another spelling of one.
 - Failures surface at the mistake, not three call sites downstream.
 - No `UnityEditor` dependency, so the runtime drops into any assembly.
 
@@ -24,10 +24,9 @@ this contract a compiler can check.
   dereference reaches something. See [Teardown](#teardown) for the limits.
 - Under `[SingletonCreation(FindOnly)]` nothing is ever created: `Instance` resolves from the loaded
   scenes or throws `MissingSingletonException`, in play mode and edit mode alike.
-- A persistent singleton is made persistent even when another object resolved it before its own
-  `Awake` ran.
-- The deprecated `MonoBehaviourSingletonPassive<T>.Instance` is null until some component's `Awake`
-  claims the slot, and never auto-creates.
+- A singleton with the default Application lifetime is made persistent even when another object
+  resolved it before its own `Awake` ran. One with a Scene lifetime is never made persistent, and
+  is destroyed with its scene.
 - Nothing is created during teardown: neither after `Application.quitting` has fired, nor in the
   frame in which a scene unload destroyed the singleton.
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
@@ -69,14 +68,14 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 
 ## Constraints on the subclass
 
-- Must be CRTP: `class Foo : MonoBehaviourSingletonPersistent<Foo>`.
+- Must be CRTP: `class Foo : MonoBehaviourSingleton<Foo>`.
 - An `Awake` override must call `base.Awake()` **first**; an `OnDestroy` override must call
   `base.OnDestroy()` **last**. The base Awake claims the slot and destroys duplicates, so work
   ahead of it runs on instances that are about to disappear; the base OnDestroy releases the slot,
   so work behind it sees no live instance. **Not compiler-enforced** — the one place this design
   relies on discipline. ERS0001, ERS0005 and ERS0007 exist to catch it.
 - A non-default `Resources` path requires `[SingletonResource("path")]`.
-- Persistent flavours accept being reparented to the scene root.
+- Singletons with the default Application lifetime accept being reparented to the scene root.
 - `Current` is read-only to subclasses; claim the slot via `AssignInAwake` or the lazy path.
 - Unity 6.3 LTS (6000.3) or newer, per `package.json`.
 
@@ -85,27 +84,23 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 - **Field initialisers and `MonoBehaviour` constructors.** Unity throws on `Find` and
   `new GameObject` there. ERS0004.
 - **`OnValidate` and `ISerializationCallbackReceiver`.** Object creation during deserialisation is
-  unsupported and can throw. ERS0008, for the lazy flavours, whose `Instance` searches and creates.
+  unsupported and can throw. ERS0008.
 - **Any thread but the main thread.**
 - **Caching `Instance` in a field that can outlive the singleton.** Bypasses both the session
   guard and the fake-null collapse — the exact bug class this package exists to prevent. That is a
   static or serialised field, a field on anything but a `Component`, or any field holding a
-  singleton that is not persistent. A private, non-serialised field on a `Component` holding a
-  persistent singleton cannot outlive it. ERS0002.
-- **Reading a Passive `Instance` from another object's `Awake` or `OnEnable`.** `Awake` order is
-  undefined, and during a scene load Unity runs each object's `OnEnable` straight after its own
-  `Awake`, before the next object wakes — so both are a race. Use `Start`, which runs only after
-  every object in the scene has woken. ERS0010.
+  singleton with a Scene lifetime. A private, non-serialised field on a `Component` holding a
+  singleton with the default lifetime cannot outlive it. ERS0002.
 - **Setting `hideFlags` on a singleton yourself.** The find path depends on them. ERS0009.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
-- **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged on any flavour
-  that deduplicates. A duplicate now destroys only itself when its GameObject carries anything else, so a
+- **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged. A duplicate now destroys only itself when its GameObject carries anything else, so a
   sibling singleton is no longer collateral; the GameObject does still travel as one object, so a
-  persistent flavour reparents its siblings to the scene root and makes them persistent too. See
+  singleton with the default lifetime reparents its siblings to the scene root and makes them
+  persistent too. See
   `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Placement*,
   which reports both cases in the loaded scenes and on every scene save.
 
-  A persistent singleton **with no serialized fields** resolves this itself: it is rebuilt on a
+  A singleton with the default lifetime and **no serialized fields** resolves this itself: it is rebuilt on a
   new `GameObject` named for the type, and the shared GameObject stays in the scene. A `Component` cannot
   be moved between `GameObject`s, so this destroys the authored component and constructs a
   replacement — safe only because there was no serialized state to carry across. Two costs remain
@@ -120,9 +115,10 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 
 ## Side effects of touching Instance
 
-- First access on the auto flavour may, in order: search every active object of the type,
+- First access may, in order: search every active object of the type,
   synchronously read from `Resources`, instantiate a prefab, create a `GameObject`, reparent it to
-  root, and mark it `DontDestroyOnLoad`. Pay that at load, not mid-session on device.
+  root, and mark it `DontDestroyOnLoad` unless its lifetime is Scene. Pay that at load, not
+  mid-session on device.
 - If the lazy path creates the instance, that instance's `Awake` runs re-entrantly inside your
   `Instance` call.
 - Logs an error on duplicates. Throws `MissingSingletonException` on policy violation. Warns once
@@ -131,9 +127,6 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 
 ## Known gaps and accepted risks
 
-- Plain `MonoBehaviourSingleton<T>` declares no `Awake`, so it never claims the slot or destroys
-  duplicates — it picks one and logs the rest. Two scene-authored instances both survive. Use a
-  Persistent flavour if you want enforcement.
 - `FindObjectsInactive.Exclude` misses singletons on inactive objects; a duplicate can be created
   and will self-destruct only when the inactive one is enabled.
 - Edit-mode transients lose all state on every recompile.

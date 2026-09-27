@@ -20,7 +20,7 @@ MIT licensed. Unity 6.3 LTS and newer.
 using EntropyReductionServices.Singletons;
 using UnityEngine;
 
-public class AudioBus : MonoBehaviourSingletonPersistent<AudioBus>
+public class AudioBus : MonoBehaviourSingleton<AudioBus>
 {
     private AudioSource _source;
 
@@ -63,24 +63,21 @@ Anything other than teardown that leaves `Instance` unresolvable throws `Missing
 naming the type and the reason, so a configuration mistake fails where you made it rather than as
 a `NullReferenceException` in unrelated code forty frames later.
 
-## Flavors
+## One class, two policies
 
-| | Survives scene load |
-|---|---|
-| `MonoBehaviourSingleton<T>` | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes |
+`MonoBehaviourSingleton<T>` resolves on demand — scene search, then `Resources`, then a bare
+GameObject — claims the slot in `Awake`, destroys later duplicates, and lives until the application
+quits. That suits stateless services whose existence is an implementation detail. Two attributes
+adjust it:
 
-Both resolve on demand — scene search, then `Resources`, then a bare GameObject — which suits
-stateless services whose existence is an implementation detail. For objects that must be authored,
-carrying inspector state or scene references, mark the type
-`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`: `Instance` then resolves from the scene
-only, and throws if nothing was authored rather than conjuring a stand-in.
-
-`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` are deprecated
-in favour of `FindOnly`, and will be removed in 3.0.0.
+- `[SingletonLifetime(SingletonLifetimePolicy.Scene)]` — die with the scene, for per-scene objects
+  such as a level director.
+- `[SingletonCreation(SingletonCreationPolicy.FindOnly)]` — resolve from the scene only, and throw
+  if nothing was authored rather than conjuring a stand-in, for objects carrying inspector state
+  or scene references.
 
 **[Read the full documentation →](Packages/com.entropyreductionservices.singleton/Documentation~/singletons.md)**
-for choosing between them, the lifecycle walkthrough, edit-mode behaviour, configuration
+for choosing a lifetime and creation policy, the lifecycle walkthrough, edit-mode behaviour, configuration
 attributes, and the things this deliberately will not do.
 
 **[contract.md](Packages/com.entropyreductionservices.singleton/Documentation~/contract.md)** is
@@ -129,15 +126,14 @@ Both routes give a versioned, resolvable dependency that upgrades and rolls back
 
 ## Analyzers
 
-Ten Roslyn rules ship with the package and apply to your assembly automatically once it
+Nine Roslyn rules ship with the package and apply to your assembly automatically once it
 references `EntropyReductionServices.Singletons` — no asset labels, no manifest entries, nothing
 copied into your `Assets` folder. They catch the contract violations that are statically
 checkable: a missing or misplaced `base.Awake()`, caching `Instance` in a field, unguarded teardown
-access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization callback, a passive `Instance` read
-while objects are still waking, `Awake` declared without `override`, and `hideFlags` set on a
-singleton.
+access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization
+callback, `Awake` declared without `override`, and `hideFlags` set on a singleton.
 
-All ten ship as warnings, because they arrive with your first reference to the package rather
+All nine ship as warnings, because they arrive with your first reference to the package rather
 than by opt-in and should not break a build you did not ask to have linted. Escalating them in
 your own project is a three-line `Default.ruleset`. See
 [analyzers.md](Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md).

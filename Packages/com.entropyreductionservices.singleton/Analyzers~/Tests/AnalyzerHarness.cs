@@ -31,19 +31,14 @@ namespace Consuming
 {
     using EntropyReductionServices.Singletons;
 
-    public class Bus : MonoBehaviourSingletonPersistent<Bus>
+    public class Bus : MonoBehaviourSingleton<Bus>
     {
         public void Stop() { }
     }
 
-    // Lazy but not persistent: lives in a scene and dies with it, so a field holding it goes stale.
+    // Scene lifetime: lives in a scene and dies with it, so a field holding it goes stale.
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
     public class Ticker : MonoBehaviourSingleton<Ticker>
-    {
-        public void Stop() { }
-    }
-
-    // Passive: Instance is null until an Awake claims the slot, so '?.' on it is a real guard.
-    public class Board : MonoBehaviourSingletonPassive<Board>
     {
         public void Stop() { }
     }

@@ -1,7 +1,3 @@
-// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
-// file names them on purpose.
-#pragma warning disable CS0618
-
 using NUnit.Framework;
 using UnityEngine;
 
@@ -25,16 +21,10 @@ namespace EntropyReductionServices.Singletons.Tests
     public class SingletonNamespaceTests
     {
         // Mirrors the *MetadataName constants in Analyzers~/SingletonAnalyzer.cs, one case each.
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonBase`1",
-            typeof(MonoBehaviourSingletonBase<>))]
         [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingleton`1",
             typeof(MonoBehaviourSingleton<>))]
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPersistent`1",
-            typeof(MonoBehaviourSingletonPersistent<>))]
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPassive`1",
-            typeof(MonoBehaviourSingletonPassive<>))]
-        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPassivePersistent`1",
-            typeof(MonoBehaviourSingletonPassivePersistent<>))]
+        [TestCase("EntropyReductionServices.Singletons.SingletonLifetimeAttribute",
+            typeof(SingletonLifetimeAttribute))]
         [TestCase("UnityEngine.MonoBehaviour", typeof(MonoBehaviour))]
         [TestCase("UnityEngine.Component", typeof(Component))]
         [TestCase("UnityEngine.Object", typeof(UnityEngine.Object))]
@@ -45,36 +35,6 @@ namespace EntropyReductionServices.Singletons.Tests
             Assert.AreEqual(expected, actual.FullName,
                 "the analyzer resolves this type by this exact string; a mismatch silently " +
                 "disables the rules that depend on it");
-        }
-
-        /// <summary>
-        /// ERS0006 reports '?.' only on the lazy flavour, because a passive Instance is genuinely
-        /// null until an Awake claims the slot. That distinction is inheritance, not naming, and
-        /// the analyzer's test stubs model it — so it is pinned here against the real types.
-        /// </summary>
-        [Test]
-        public void PassiveFlavour_IsNotALazySingleton()
-        {
-            Assert.IsFalse(DerivesFrom(typeof(MonoBehaviourSingletonPassive<>), typeof(MonoBehaviourSingleton<>)),
-                "ERS0006 must not fire on the passive flavour, where '?.' is a real guard");
-            Assert.IsTrue(DerivesFrom(typeof(MonoBehaviourSingletonPersistent<>), typeof(MonoBehaviourSingleton<>)),
-                "ERS0006 must still fire on the persistent flavour");
-        }
-
-        /// <summary>
-        /// Walks the base chain comparing generic type definitions. Type.IsSubclassOf cannot answer
-        /// this: the base of the open MonoBehaviourSingletonPersistent&lt;T&gt; is the constructed
-        /// MonoBehaviourSingleton&lt;T&gt;, which is never equal to the open definition.
-        /// </summary>
-        private static bool DerivesFrom(System.Type type, System.Type openBaseDefinition)
-        {
-            for (var current = type.BaseType; current != null; current = current.BaseType)
-            {
-                if (current.IsGenericType && current.GetGenericTypeDefinition() == openBaseDefinition)
-                    return true;
-            }
-
-            return false;
         }
     }
 }
