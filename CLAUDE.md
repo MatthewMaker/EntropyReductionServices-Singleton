@@ -190,11 +190,15 @@ definitions are committed under `.github/rulesets/` as a record:
 
 **Still to do: register the package with OpenUPM** at https://openupm.com/packages/add/, then edit
 the generated PR's YAML to add `trackingMode: githubRelease`, so it publishes the signed Release
-asset rather than packing the tag itself, and `minVersion: 2.6.0`. No earlier tag has a signed
-Release asset: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite commit that is not in
-this repository, so it was not backfilled. Push no `v*` tag until that PR is merged, or OpenUPM's
-default tracker can publish an unsigned build first. Once the package page exists,
-`gh variable set OPENUPM_ENABLED --body true` turns on the `openupm` job in `release.yml`.
+asset rather than packing the tag itself, and `minVersion: 3.0.0`, so 3.0.0 is the first version
+OpenUPM publishes and any 2.x releases stay on GitHub Releases and Verdaccio only. (No tag before
+2.6.0 has a signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a
+pre-rewrite commit that is not in this repository, so it was not backfilled.) Push no `v3.*` tag
+until that PR is merged, or OpenUPM's default tracker can publish an unsigned build first.
+
+Set `gh variable set OPENUPM_ENABLED --body true` just before tagging v3.0.0, not when the package
+page appears: the `openupm` job asks OpenUPM to publish the pushed tag, and for a 2.x tag below
+`minVersion` there is nothing to publish — what the action reports then is untested.
 
 ## Non-obvious repo facts
 

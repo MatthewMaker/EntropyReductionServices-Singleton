@@ -93,7 +93,7 @@ usages, side effects and known gaps. Read it before relying on any of them.
 
 ### OpenUPM
 
-The OpenUPM listing is pending; the first version published there will be 2.6.0. Once it is live:
+The OpenUPM listing is pending; the first version published there will be 3.0.0. Once it is live:
 
 ```zsh
 openupm add com.entropyreductionservices.singleton
@@ -111,7 +111,7 @@ Or add the scoped registry to `Packages/manifest.json` directly:
     }
   ],
   "dependencies": {
-    "com.entropyreductionservices.singleton": "2.6.0"
+    "com.entropyreductionservices.singleton": "3.0.0"
   }
 }
 ```
