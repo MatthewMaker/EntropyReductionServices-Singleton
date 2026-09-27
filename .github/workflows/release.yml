@@ -143,9 +143,19 @@ jobs:
             fi
             exit 0
           fi
-          # Notes are the version's CHANGELOG section, up to the next heading.
-          awk -v h="## [$VERSION]" 'index($0, h) == 1 { f = 1; next } f && /^## \[/ { exit } f' \
-            "$PKG/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
+          # Notes are the version's CHANGELOG section. A release also carries the sections of the
+          # pre-releases that led to it (3.0.0 takes every 3.0.0-*), each under its own heading, so
+          # its notes stand alone while the CHANGELOG keeps a per-pre-release delta.
+          awk -v v="$VERSION" '
+            /^## \[/ {
+              h = $0; sub(/^## \[/, "", h); sub(/\].*/, "", h)
+              lead = index(v, "-") == 0 && index(h, v "-") == 1
+              keep = h == v || lead
+              if (lead) print "## " h
+              next
+            }
+            keep
+          ' "$PKG/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
           # A pre-release version (x.y.z-pre.N and the like) is marked as one, so GitHub never
           # shows it as the latest release.
           prerelease=()

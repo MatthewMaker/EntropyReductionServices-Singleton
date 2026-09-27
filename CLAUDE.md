@@ -63,6 +63,11 @@ release in three places:
   to Verdaccio under the npm dist-tag named by the label (`pre`, `rc`, `exp`), so `latest` stays
   on the last release.
 - OpenUPM's `minVersion: 3.0.0` excludes every 3.0.0 pre-release, since semver sorts them below it.
+- The CHANGELOG is append-only, as Unity's own packages keep theirs: one section per pre-release,
+  each a delta on the one before, and a published section is never edited. When a later build
+  changes or fixes something a pre-release introduced, that goes in as a new entry in the later
+  section. The release's GitHub notes roll the sections up: `release.yml` appends every `x.y.z-*`
+  section, under its own heading, to the `x.y.z` section.
 
 Consumers see pre-release versions in the Package Manager window only with *Project Settings >
 Package Manager > Enable Pre-release Packages* on; a version named explicitly in `manifest.json`
