@@ -1,7 +1,7 @@
 # Unity Singletons
 
-MonoBehaviour singleton base classes that survive domain reload, scene loads and application
-shutdown, with Roslyn analyzers that enforce the contract in consuming assemblies.
+MonoBehaviour singleton base class that survives domain reload, scene loads and application
+shutdown, with Roslyn analyzers that enforce its contract in consuming assemblies.
 
 The usual Unity singleton is a static field and an `Awake`. That holds until you disable Domain
 Reload and your statics outlive the play session, or the app quits and a lazy accessor resurrects

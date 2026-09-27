@@ -50,7 +50,7 @@ namespace EntropyReductionServices.Analyzers
             title: "Singleton message override must call its base implementation",
             messageFormat: "'{0}.{1}' overrides the singleton's '{1}' but never calls base.{1}(); " +
                            "the slot will not be claimed or released",
-            description: "The singleton base classes do their registration, deduplication and " +
+            description: "MonoBehaviourSingleton<T> does its registration, deduplication and " +
                          "teardown work inside Awake and OnDestroy. An override that does not " +
                          "chain to base leaves the singleton non-functional in a way that only " +
                          "shows up at runtime.");

@@ -1,7 +1,7 @@
 # Singletons
 
-The four base classes in `Runtime/MonoBehaviourSingleton.cs`, what each guarantees, and why the
-implementation is shaped the way it is.
+The singleton base class in `Runtime/MonoBehaviourSingleton.cs`, its lifetime and creation
+policies, what each guarantees, and why the implementation is shaped the way it is.
 
 [contract.md](contract.md) is the normative contract — terse, complete, and the thing to check when
 you need a precise answer. This document is the explanation.

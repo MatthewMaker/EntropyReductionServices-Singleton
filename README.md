@@ -5,7 +5,7 @@
 [![Unity 6000.3+](https://img.shields.io/badge/Unity-6000.3%2B-black?logo=unity)](Packages/com.entropyreductionservices.singleton/package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](Packages/com.entropyreductionservices.singleton/LICENSE)
 
-MonoBehaviour singleton base classes that survive domain reload, scene loads and application
+MonoBehaviour singleton base class that survives domain reload, scene loads and application
 shutdown.
 
 The usual Unity singleton is a static field and an `Awake`. That holds until you disable Domain

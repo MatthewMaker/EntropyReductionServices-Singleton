@@ -8,7 +8,7 @@ A Unity project whose only real content is the embedded package at
 `Packages/com.entropyreductionservices.singleton/`. The surrounding project exists so the package
 can be opened, compiled and tested by a real editor — it is a test harness, not an application.
 
-The package ships two things: the singleton base classes in `Runtime/`, and nine Roslyn analyzers
+The package ships two things: the singleton base class in `Runtime/`, and nine Roslyn analyzers
 that enforce their contract in *consuming* assemblies.
 
 ## Branching and releases
