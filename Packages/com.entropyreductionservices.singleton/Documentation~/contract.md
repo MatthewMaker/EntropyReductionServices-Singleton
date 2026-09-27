@@ -21,6 +21,8 @@ this contract a compiler can check.
 - `Instance` never returns null once the singleton has existed. During teardown it returns the
   component that held the slot — a live C# object whose native peer is gone — so a bare
   dereference reaches something. See [Teardown](#teardown) for the limits.
+- A persistent singleton is made persistent even when another object resolved it before its own
+  `Awake` ran.
 - `MonoBehaviourSingletonPassive<T>.Instance` is null until some component's `Awake` claims the
   slot, and never auto-creates.
 - Nothing is created during teardown: neither after `Application.quitting` has fired, nor in the

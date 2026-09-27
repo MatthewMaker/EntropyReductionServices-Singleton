@@ -24,6 +24,11 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- **A scene-authored persistent singleton resolved before its own `Awake` is now made
+  persistent.** Its `Awake` persisted it only when it claimed an empty slot. When another object's
+  `Awake` had already resolved it through the scene search, it found itself in the slot and did
+  nothing, so it was destroyed with its scene.
+
 - **The package compiles on Unity 6000.3, its declared minimum.** Scene lookup called the
   `FindObjectsByType<T>(FindObjectsInactive)` overload, which only exists from 6000.4, so the
   runtime assembly failed to compile on 6000.3 with CS1503. It now uses the overload each editor

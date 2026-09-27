@@ -927,17 +927,18 @@ namespace EntropyReductionServices.Singletons
     public abstract class MonoBehaviourSingletonPersistent<T> : MonoBehaviourSingleton<T>
         where T : MonoBehaviourSingletonPersistent<T>
     {
+        /// <summary>
+        /// Claims the slot if it is free, then persists this instance if it holds the slot and
+        /// destroys it otherwise. Persisting is keyed on holding the slot rather than on having
+        /// just claimed it: another object's Awake can resolve a scene-authored instance through
+        /// the scene search before this Awake runs, and that instance must still be persisted.
+        /// </summary>
         protected virtual void Awake()
         {
-            if (Current == null)
-            {
-                AssignInAwake();
-                DontDestroy();
-            }
-            else if (!IsCurrentInstance)
-            {
-                DestroyDuplicate();
-            }
+            if (Current == null) AssignInAwake();
+
+            if (IsCurrentInstance) DontDestroy();
+            else DestroyDuplicate();
         }
     }
 
