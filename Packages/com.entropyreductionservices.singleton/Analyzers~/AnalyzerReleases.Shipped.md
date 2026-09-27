@@ -2,6 +2,13 @@
 ; the table format is strict — no blank line after the section heading. See
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 
+## Release 3.0.0
+
+### Removed Rules
+Rule ID | Category | Severity | Notes
+--------|----------|----------|--------------------
+ERS0010 | Singleton | Warning | Do not read a passive singleton's Instance from Awake or OnEnable. [Documentation](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#ers0010)
+
 ## Release 2.6.0
 
 ### New Rules

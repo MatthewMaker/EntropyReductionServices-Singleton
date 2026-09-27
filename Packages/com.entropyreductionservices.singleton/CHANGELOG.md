@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.0]
+
 ### Changed
 
 - **Breaking: unloading a scene that is not the active one no longer opens the teardown window.** A read of
