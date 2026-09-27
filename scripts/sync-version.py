@@ -18,6 +18,9 @@ permanently on the first release that adds no rule.
     python3 scripts/sync-version.py            # regenerate Version.props
     python3 scripts/sync-version.py --check     # exit 1 if anything disagrees
 
+A version may carry one of the pre-release suffixes Unity's package validation accepts — -pre.N,
+-rc.N or -exp.N, with N from 1 — and is ordered by semver: 3.0.0-pre.1 sorts before 3.0.0.
+
 --check is what the pre-commit hook and CI run. The committed DLL is checked separately, by
 CommittedAnalyzerVersionTests in Analyzers~/Tests — reading a version out of an assembly needs a
 runtime that can load it, which this script has no business doing.
@@ -35,14 +38,17 @@ VERSION_PROPS = PACKAGE / "Analyzers~" / "Version.props"
 CHANGELOG = PACKAGE / "CHANGELOG.md"
 SHIPPED = PACKAGE / "Analyzers~" / "AnalyzerReleases.Shipped.md"
 
-SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+# x.y.z, optionally followed by one of the pre-release labels Unity's package validation accepts.
+VERSION = r"\d+\.\d+\.\d+(?:-(?:pre|rc|exp)\.[1-9]\d*)?"
+SEMVER = re.compile(rf"^{VERSION}$")
 
 
 def read_source_version():
     """The version in package.json, which every other location is measured against."""
     version = json.loads(PACKAGE_JSON.read_text(encoding="utf-8")).get("version")
     if not version or not SEMVER.match(version):
-        raise SystemExit(f"{PACKAGE_JSON}: expected a x.y.z \"version\", found {version!r}")
+        raise SystemExit(f"{PACKAGE_JSON}: expected a x.y.z or x.y.z-(pre|rc|exp).N \"version\", "
+                         f"found {version!r}")
     return version
 
 
@@ -67,8 +73,17 @@ def render_props(version):
 
 
 def as_tuple(version):
-    """x.y.z as a comparable tuple of ints."""
-    return tuple(int(part) for part in version.split("."))
+    """
+    A version as a tuple that sorts by semver precedence. A pre-release sorts before the release
+    it leads to, then by label (exp, pre, rc happen to sort alphabetically in the order Unity
+    ranks them) and iteration.
+    """
+    core, _, suffix = version.partition("-")
+    major, minor, patch = (int(part) for part in core.split("."))
+    if not suffix:
+        return major, minor, patch, 1, "", 0
+    label, _, iteration = suffix.partition(".")
+    return major, minor, patch, 0, label, int(iteration)
 
 
 def first_match(path, pattern, what):
@@ -93,11 +108,11 @@ def main():
             VERSION_PROPS.write_text(wanted, encoding="utf-8")
             print(f"wrote {VERSION_PROPS.relative_to(ROOT)}")
 
-    changelog = first_match(CHANGELOG, r"^## \[(\d+\.\d+\.\d+)\]", "## [x.y.z] heading")
+    changelog = first_match(CHANGELOG, rf"^## \[({VERSION})\]", "## [x.y.z] heading")
     if changelog != version:
         problems.append(f"CHANGELOG.md's newest heading is {changelog}, package.json says {version}")
 
-    shipped = first_match(SHIPPED, r"^## Release (\d+\.\d+\.\d+)", "## Release x.y.z heading")
+    shipped = first_match(SHIPPED, rf"^## Release ({VERSION})", "## Release x.y.z heading")
     if as_tuple(shipped) > as_tuple(version):
         problems.append(
             f"AnalyzerReleases.Shipped.md claims release {shipped}, which is newer than "

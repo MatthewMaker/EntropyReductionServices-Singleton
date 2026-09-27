@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -33,12 +34,15 @@ namespace ERS.Singleton.Analyzers.Tests
 
             Assert.That(File.Exists(path), Is.True, $"No committed analyzer DLL at {path}");
 
-            // GetAssemblyName reads metadata without loading, so this cannot collide with the
-            // copy already loaded through the project reference.
-            var actual = AssemblyName.GetAssemblyName(path).Version;
+            // The informational version, which FileVersionInfo reports as ProductVersion, is the
+            // one that keeps a pre-release suffix: AssemblyVersion reads 3.0.0.0 for 3.0.0-pre.1
+            // and for 3.0.0-pre.2 alike, so it cannot tell a stale pre-release DLL apart. Read from
+            // the file's metadata without loading it, so it cannot collide with the copy already
+            // loaded through the project reference.
+            var actual = FileVersionInfo.GetVersionInfo(path).ProductVersion;
 
             Assert.That(
-                $"{actual.Major}.{actual.Minor}.{actual.Build}",
+                actual,
                 Is.EqualTo(expected),
                 "The committed analyzer DLL is stale. Rebuild it and copy it into Runtime/Analyzers/ "
                 + "— see the release checklist in CLAUDE.md.");

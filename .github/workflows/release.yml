@@ -146,7 +146,11 @@ jobs:
           # Notes are the version's CHANGELOG section, up to the next heading.
           awk -v h="## [$VERSION]" 'index($0, h) == 1 { f = 1; next } f && /^## \[/ { exit } f' \
             "$PKG/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" "$TGZ" --verify-tag \
+          # A pre-release version (x.y.z-pre.N and the like) is marked as one, so GitHub never
+          # shows it as the latest release.
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" "$TGZ" --verify-tag "${prerelease[@]}" \
             --title "$NAME $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
 
   verdaccio:
@@ -188,11 +192,17 @@ jobs:
           echo "Authenticated to Verdaccio as $(npm whoami)"
 
       - name: Publish
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
         run: |
+          # A pre-release goes under the dist-tag named by its label (pre, rc or exp) instead of
+          # latest, so resolving the newest version keeps returning the last release.
+          tag=latest
+          case "$VERSION" in *-*) suffix="${VERSION#*-}"; tag="${suffix%%.*}" ;; esac
           want="sha512-$(openssl dgst -sha512 -binary "$TGZ" | base64 -w0)"
           have=$(npm view "$SPEC" dist.integrity 2>/dev/null || true)
           if [ -z "$have" ]; then
-            npm publish "$TGZ"
+            npm publish "$TGZ" --tag "$tag"
             have=$(npm view "$SPEC" dist.integrity)
           fi
           # Passes on a re-run that finds these bytes already published; fails if the version
