@@ -58,7 +58,7 @@ attributes adjust that:
 Nine rules ship as a precompiled analyzer and apply automatically to any assembly referencing
 this package — no setup, no asset labels, nothing copied into `Assets`. They catch the mistakes
 the compiler cannot: a missing `base.Awake()`, caching `Instance` in a field, unguarded teardown
-access, construction-time access, `Awake` declared without `override`, a pointless `?.` on a lazy
+access, construction-time access, `Awake` declared without `override`, a pointless `?.` on
 `Instance`, a base call that runs in the wrong order, access from a serialization callback, and
 `hideFlags` set on a singleton.
 

@@ -7,14 +7,12 @@ using UnityEngine.TestTools;
 namespace EntropyReductionServices.Singletons.PlayModeTests
 {
     /// <summary>
-    /// Scene unload is the second teardown window, and the one Unity gives no usable event for —
-    /// sceneUnloaded fires after the objects are already gone. The singleton recognises it from
+    /// Unloading a scene that is not the active one. The singleton recognises a scene unload from
     /// inside its own OnDestroy (a scene under unload reports gameObject.scene.isLoaded == false)
-    /// and reports it to SingletonRuntime, which holds the window open for the rest of that frame.
-    ///
-    /// Without it, a teardown callback reading Instance after the singleton had been destroyed
-    /// walked the full resolution chain and built a replacement GameObject inside the scene being
-    /// unloaded.
+    /// and reports it to SingletonRuntime — but the teardown window only opens while the unloading
+    /// scene is the active one, the scene a replacement would be created in. Here it is not, so a
+    /// read builds the replacement in the live active scene. SceneChangeTests covers the unload
+    /// that does open the window: a single-mode load.
     ///
     /// These assert from inside OnDestroy rather than after the unload completes. The window is a
     /// frame stamp and UnloadSceneAsync resumes its caller on a later frame, so a test that yields
@@ -39,39 +37,27 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
 
         /// <summary>
-        /// The whole point: Instance read during the unload hands back the destroyed component
-        /// and builds nothing.
+        /// The unloading scene is not where a replacement would go, so the window stays shut:
+        /// Instance read during the unload builds the replacement in the active scene, and
+        /// IsAvailable says so.
         /// </summary>
         [UnityTest]
-        public IEnumerator InstanceReadDuringUnload_ReturnsTheTombstoneAndCreatesNothing()
+        public IEnumerator InstanceReadDuringAnInactiveScenesUnload_BuildsTheReplacementInTheActiveScene()
         {
-            var original = Probes.AuthorIn<UnloadTombstoneWitness>(_scene, "bus");
-            Assert.AreSame(original, UnloadTombstoneWitness.Instance,
+            var original = Probes.AuthorIn<UnloadInactiveWitness>(_scene, "bus");
+            Assert.AreSame(original, UnloadInactiveWitness.Instance,
                 "precondition: the probe must own the slot, or OnDestroy releases nothing");
+            Assert.AreNotEqual(_scene, SceneManager.GetActiveScene(), "precondition: not the active scene");
 
             yield return Probes.UnloadAndWait(_scene);
+            UnloadInactiveWitness.Armed = false;
 
-            Assert.AreEqual(1, UnloadTombstoneWitness.Destroys, "the witness must have been destroyed once");
-            Assert.IsTrue(UnloadTombstoneWitness.SawWindow, "the unload window must be open inside OnDestroy");
-            Assert.IsTrue(UnloadTombstoneWitness.GotTombstone, "Instance must hand back the destroyed component");
-            Assert.IsFalse(UnloadTombstoneWitness.GotFreshObject, "Instance must not have built a replacement");
-        }
-
-        /// <summary>
-        /// IsAvailable's "true while playing" shortcut is only honest because Instance creates on
-        /// demand. During the unload window it does not, so IsAvailable must not claim otherwise.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator IsAvailable_DuringUnload_IsFalse()
-        {
-            var original = Probes.AuthorIn<UnloadAvailabilityWitness>(_scene, "bus");
-            Assert.AreSame(original, UnloadAvailabilityWitness.Instance, "precondition: owns the slot");
-            Assert.IsTrue(UnloadAvailabilityWitness.IsAvailable, "precondition: available while loaded");
-
-            yield return Probes.UnloadAndWait(_scene);
-
-            Assert.IsTrue(UnloadAvailabilityWitness.SawWindow, "precondition: the window was open");
-            Assert.IsFalse(UnloadAvailabilityWitness.WasAvailable);
+            Assert.AreEqual(1, UnloadInactiveWitness.Destroys, "the witness must have been destroyed once");
+            Assert.IsFalse(UnloadInactiveWitness.SawWindow, "the window must stay shut for an inactive scene");
+            Assert.IsTrue(UnloadInactiveWitness.WasAvailable, "IsAvailable must agree that Instance can create");
+            Assert.IsTrue(UnloadInactiveWitness.GotFreshObject, "Instance must have built a replacement");
+            Assert.AreEqual(SceneManager.GetActiveScene().name, UnloadInactiveWitness.FreshScene,
+                "in the active scene, not the one being unloaded");
         }
 
         /// <summary>
@@ -90,22 +76,6 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             Assert.IsFalse(UnloadIndividualWitness.SawWindow, "an ordinary destroy is not a scene unload");
             Assert.IsNotNull(UnloadIndividualWitness.Instance, "and resurrection still works");
             yield break;
-        }
-
-        /// <summary>
-        /// The stamp has to expire. If it did not, a scene load would permanently disable
-        /// resurrection — silently, and only visibly on the second load.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator TheWindow_ClosesAfterTheUnloadFrame()
-        {
-            Probes.AuthorIn<UnloadWindowCloses>(_scene, "bus");
-
-            yield return Probes.UnloadAndWait(_scene);
-
-            Assert.IsFalse(SingletonRuntime.IsUnloadingScene, "the stamp must not outlive its frame");
-            Assert.IsFalse(UnloadWindowCloses.Exists, "precondition: the slot was released");
-            Assert.IsNotNull(UnloadWindowCloses.Instance, "creation must work again afterwards");
         }
 
         /// <summary>

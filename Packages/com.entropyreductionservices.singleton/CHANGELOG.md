@@ -6,6 +6,28 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: unloading a scene that is not the active one no longer opens the teardown window.** A read of
+  `Instance` from its `OnDestroy` builds a replacement in the active scene, as it would outside
+  teardown, instead of handing back the destroyed component. `SingletonRuntime.IsUnloadingScene`
+  and `IsTearingDown` are true only while the active scene is being unloaded.
+- **ERS0006 and ERS0008 titles and descriptions** say "a singleton's `Instance`" rather than "a
+  lazy singleton's `Instance`", and ERS0001's description names `MonoBehaviourSingleton<T>` rather
+  than "the singleton base classes", now that it is the only base class. The rules themselves are
+  unchanged.
+
+### Fixed
+
+- **A scene's `Awake` can create singletons during a single-mode scene load.** The load destroys
+  the old scene and wakes the new one in the same frame, and destroying a singleton with its scene
+  blocked creation of every singleton type for the rest of that frame. The new scene's `Awake`
+  then got the destroyed instance back from `Instance`, or null for a type that had never existed.
+  Creation is now blocked only while the active scene, where a new instance would be created, is
+  the one being unloaded.
+- **Analyzer help links land on their rule.** Each rule links to `analyzers.md#ers000N`, an
+  anchor that the page's headings did not produce, so the link opened the top of the page.
+
 ## [3.0.0-pre.1]
 
 ### Added

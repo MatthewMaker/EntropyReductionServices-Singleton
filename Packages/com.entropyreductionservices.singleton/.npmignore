@@ -1,5 +1,6 @@
-# OpenUPM clones this repository at each versioned tag and runs `npm pack` from the folder
-# holding package.json, so npm's packing rules decide what consumers receive.
+# release.yml builds the one tarball every channel publishes with `upm pack`, which follows this
+# file as `npm pack` would and adds only the signature, so these rules decide what consumers
+# receive. OpenUPM publishes that tarball from the GitHub Release as-is.
 #
 # A deny list rather than a package.json "files" allow list: Unity needs a .meta file beside
 # every shipped asset, and an allow list that misses one produces a package that imports with

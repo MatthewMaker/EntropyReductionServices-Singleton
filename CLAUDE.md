@@ -253,9 +253,12 @@ nothing to publish — what the action reports then is untested.
   type and the whole run shares one domain, so two tests sharing a probe type see each other's
   state. EditMode probes need `[ExecuteAlways]` for `Awake`/`OnDestroy` to run outside play mode.
 - **Teardown windows cannot be simulated from a test.** `SingletonRuntime.IsQuitting` is driven by
-  `Application.quitting` and has no setter; the scene-unload window is a frame stamp, and a test
-  resuming after `UnloadSceneAsync` is already on a later frame. Assert from inside a probe's own
-  `OnDestroy` instead — see `Tests/PlayMode/SceneUnloadTests.cs`.
+  `Application.quitting` and has no setter; the scene-unload window is a frame stamp that opens
+  only while the active scene is unloading, and a test resuming after a load or unload is already
+  on a later frame. Assert from inside a probe's own `OnDestroy` instead — see
+  `Tests/PlayMode/SceneChangeTests.cs`. Only a single-mode load opens that window, so those tests
+  load real scenes, built into `Assets/Scenes/SingletonTests/` by
+  `Assets/Editor/SingletonTestFixtureBuilder.cs` and skipped when absent.
 - **Distribution is one signed tarball.** `release.yml` runs `upm pack` in the package folder and
   publishes that file to GitHub Releases, Verdaccio and OpenUPM; nothing downstream repacks it.
   `upm pack` follows `.npmignore` and adds only `.attestation.p7m`, the signature — the workflow

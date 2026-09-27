@@ -27,8 +27,8 @@ this contract a compiler can check.
 - A singleton with the default Application lifetime is made persistent even when another object
   resolved it before its own `Awake` ran. One with a Scene lifetime is never made persistent, and
   is destroyed with its scene.
-- Nothing is created during teardown: neither after `Application.quitting` has fired, nor in the
-  frame in which a scene unload destroyed the singleton.
+- Nothing is created during teardown: neither after `Application.quitting` has fired, nor into an
+  active scene that is being unloaded.
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
 
 **Correctness**
@@ -46,12 +46,18 @@ this contract a compiler can check.
 
 ## Teardown
 
-Teardown is two windows: the application is quitting, or a scene unload has destroyed the
-singleton, for the remainder of that frame. `SingletonRuntime.IsTearingDown` is true in both.
+Teardown is two windows: the application is quitting, or the active scene — the one a replacement
+would be created in — is being unloaded. `SingletonRuntime.IsTearingDown` is true in both.
 
 In either window `Instance` hands back the destroyed component instead of creating a replacement,
 because creating one then drops a `GameObject` into a scene that is going away and runs its `Awake`
 against subsystems that may already be shutting down.
+
+A single-mode scene load opens the second window while it destroys the old scene, which is still
+active then, and closes it within the same frame once the new scene is active, so the new scene's
+`Awake` can create singletons. Unloading a scene that is not active does not open it: a read from
+`OnDestroy` there builds a replacement in the active scene — for a Scene-lifetime singleton, one
+that then lives with the active scene.
 
 What that buys you and what it does not:
 
@@ -93,10 +99,10 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   singleton with the default lifetime cannot outlive it. ERS0002.
 - **Setting `hideFlags` on a singleton yourself.** The find path depends on them. ERS0009.
 - **Name-matching a singleton** (`GameObject.Find`) in any build where `SINGLETON_DEBUG` may be on.
-- **Sharing a `GameObject`** is no longer forbidden outright, but stays discouraged. A duplicate now destroys only itself when its GameObject carries anything else, so a
-  sibling singleton is no longer collateral; the GameObject does still travel as one object, so a
-  singleton with the default lifetime reparents its siblings to the scene root and makes them
-  persistent too. See
+- **Sharing a `GameObject`** is allowed but discouraged. A duplicate destroys only itself when its
+  GameObject carries anything else, so a sibling singleton is not collateral; but the GameObject
+  still travels as one object, so a singleton with the default lifetime reparents its siblings to
+  the scene root and makes them persistent too. See
   `DestroyWholeGameObject`, and *Tools > Entropy Reduction Services > Validate Singleton Placement*,
   which reports both cases in the loaded scenes and on every scene save.
 
@@ -139,8 +145,8 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   still take the GameObject with it — add the singleton last, or build the GameObject inactive.
 - Additive scene loads still produce a duplicate. It self-destructs, but its `Awake` has already
   run by then.
-- The scene-unload window only opens if a singleton is itself destroyed by the unload. If none was,
-  the slot is still valid and there was nothing to guard against.
+- The scene-unload window only opens if a singleton is itself destroyed by the unload of the
+  active scene. If none was, a singleton first read from that scene's teardown is created into it.
 - Not a substitute for dependency injection or explicit init order. Lazy resolution builds a
   dependency before its first user, but it cannot order side effects that no reference expresses,
   break a cycle between two `Awake`s, or warm singletons up at a moment you choose. For those,

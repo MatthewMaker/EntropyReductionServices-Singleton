@@ -159,8 +159,8 @@ namespace EntropyReductionServices.Singletons
     /// or configuration error rather than a lifecycle fact — requesting an instance that is not in
     /// the loaded scenes from a type marked [SingletonCreation(FindOnly)], or from a type that
     /// opted out of edit-mode resolution via [SingletonEditMode].
-    /// Deliberately not thrown during application shutdown: that case returns null, because no
-    /// amount of correct calling code can avoid it.
+    /// Deliberately not thrown during teardown: that case hands back the destroyed component, or
+    /// null if the singleton never existed, because no amount of correct calling code can avoid it.
     /// </summary>
     public sealed class MissingSingletonException : InvalidOperationException
     {
@@ -235,30 +235,47 @@ namespace EntropyReductionServices.Singletons
         /// </summary>
         private static int s_unloadFrame = -1;
 
+        /// <summary>The scene whose unload destroyed that singleton.</summary>
+        private static Scene s_unloadingScene;
+
         /// <summary>
-        /// True for the remainder of the frame in which a scene unload destroyed a singleton.
+        /// True while the active scene — the one a new singleton would be created in — is being
+        /// unloaded.
         ///
         /// Unity offers no "scene is about to unload" event — sceneUnloaded fires after the fact —
         /// but a component can tell the difference from inside its own OnDestroy: a scene being
         /// unloaded reports isLoaded == false, while an individually destroyed object's scene
         /// still reports true. The singleton reports what it sees there, and this is where it
         /// lands.
+        ///
+        /// Keyed on the active scene rather than on the frame alone. A single-mode load destroys
+        /// the old scene while it is still active and wakes the new scene in the same frame, once
+        /// the new one is active; creating then is safe, and the new scene's Awake may need to.
+        /// Unloading a scene that is not active, or unloading the active one explicitly (Unity
+        /// makes another scene active first), never puts a new object into the dying scene.
         /// </summary>
-        public static bool IsUnloadingScene => s_unloadFrame >= 0 && s_unloadFrame == Time.frameCount;
+        public static bool IsUnloadingScene =>
+            s_unloadFrame >= 0 && s_unloadFrame == Time.frameCount &&
+            SceneManager.GetActiveScene() == s_unloadingScene;
 
         /// <summary>
-        /// True while the singleton must not resurrect itself: the application is quitting, or a
-        /// scene unload is in progress this frame. Creating a singleton in either window drops a
+        /// True while the singleton must not resurrect itself: the application is quitting, or
+        /// the active scene is being unloaded. Creating a singleton in either window drops a
         /// GameObject into a scene that is going away and runs Awake against subsystems that may
         /// already be shutting down.
         /// </summary>
         public static bool IsTearingDown => IsQuitting || IsUnloadingScene;
 
         /// <summary>
-        /// Records that a singleton was destroyed by a scene unload. Called by MonoBehaviourSingleton
-        /// from OnDestroy; there is no public event that fires early enough to do this for us.
+        /// Records that a singleton was destroyed by the unload of <paramref name="scene"/>.
+        /// Called by MonoBehaviourSingleton from OnDestroy; there is no public event that fires
+        /// early enough to do this for us.
         /// </summary>
-        internal static void NotifySceneUnloading() => s_unloadFrame = Time.frameCount;
+        internal static void NotifySceneUnloading(Scene scene)
+        {
+            s_unloadFrame = Time.frameCount;
+            s_unloadingScene = scene;
+        }
 
         /// <summary>
         /// Opens a new session and (re)arms the quit hook. The unsubscribe-then-subscribe pair
@@ -270,6 +287,7 @@ namespace EntropyReductionServices.Singletons
             SessionId++;
             IsQuitting = false;
             s_unloadFrame = -1;
+            s_unloadingScene = default;
             Application.quitting -= OnQuitting;
             Application.quitting += OnQuitting;
         }
@@ -281,7 +299,8 @@ namespace EntropyReductionServices.Singletons
     /// Lazy singleton: resolves from the scene, then Resources, then an empty GameObject. Its
     /// Awake claims the slot and destroys later duplicates, and it lives until the application
     /// quits unless marked [SingletonLifetime(Scene)].
-    /// It will not resurrect itself during teardown — application quit or scene unload — which is
+    /// It will not resurrect itself during teardown — application quit, or an unload of the active
+    /// scene — which is
     /// what produced "leaked GameObject" warnings. Instance hands back the destroyed component in
     /// that window. Under [SingletonCreation(FindOnly)], or outside play mode depending on
     /// [SingletonEditMode], it either resolves from the scene or throws MissingSingletonException
@@ -845,7 +864,7 @@ namespace EntropyReductionServices.Singletons
         }
 
         /// <summary>
-        /// Controls the blast radius when a duplicate is discovered: the whole GameObject GameObject,
+        /// Controls the blast radius when a duplicate is discovered: the whole GameObject,
         /// or only this component.
         ///
         /// Decided per GameObject rather than per type, because that is the axis the question lives on.
@@ -953,7 +972,7 @@ namespace EntropyReductionServices.Singletons
         {
             if (!IsCurrentInstance) return;
 
-            if (!gameObject.scene.isLoaded) SingletonRuntime.NotifySceneUnloading();
+            if (!gameObject.scene.isLoaded) SingletonRuntime.NotifySceneUnloading(gameObject.scene);
 
             // Written through the field, not Current: the setter stamps s_lastKnown, which would
             // overwrite the tombstone that Instance hands back during teardown.
@@ -966,7 +985,7 @@ namespace EntropyReductionServices.Singletons
         ///
         /// This is the single predicate behind the contract: a live singleton exists for the
         /// entire time the application is running, and none exists during teardown — application
-        /// quit, or the frame in which a scene unload destroyed it. Code that runs then —
+        /// quit, or an unload of the active scene. Code that runs then —
         /// OnDestroy, OnDisable, OnApplicationQuit, coroutine cleanup, pooled object return paths
         /// — should test this or use TryGetInstance. Code that runs during normal operation does
         /// not need to check anything.
@@ -980,7 +999,7 @@ namespace EntropyReductionServices.Singletons
             get
             {
                 // IsTearingDown, not IsQuitting: the unconditional "true" below is only honest
-                // because Instance would create one on demand, and during an unload frame it
+                // because Instance would create one on demand, and while the active scene unloads it
                 // will not. Reporting availability there would be a lie the caller acts on.
                 //
                 // Otherwise the shortcut holds exactly when Instance may create — which is never
@@ -994,8 +1013,8 @@ namespace EntropyReductionServices.Singletons
         /// The singleton, resolved from the loaded scenes, then Resources, then a new GameObject.
         ///
         /// CONTRACT: a live singleton exists for the entire time the application is running.
-        /// During teardown — application quit, or the frame in which a scene unload destroyed it —
-        /// this does not recreate one, because that leaks objects into a scene that is going away
+        /// During teardown — application quit, or an unload of the active scene — this does not
+        /// recreate one, because that leaks objects into a scene that is going away
         /// and, on device, can touch XR and audio subsystems that have already shut down. It hands
         /// back the destroyed component instead, so a bare dereference reaches a live C# object;
         /// members touching the native peer still throw. Test IsAvailable or use TryGetInstance in
