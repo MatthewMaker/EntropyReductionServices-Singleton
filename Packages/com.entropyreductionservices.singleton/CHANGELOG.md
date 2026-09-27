@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.0-pre.1]
+
 ### Added
 
 - **`[SingletonLifetime(SingletonLifetimePolicy.Scene)]`** keeps a singleton in its scene and
