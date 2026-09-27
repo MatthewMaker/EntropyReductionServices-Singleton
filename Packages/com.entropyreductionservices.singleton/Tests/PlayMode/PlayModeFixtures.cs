@@ -1,3 +1,7 @@
+// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
+// file names them on purpose.
+#pragma warning disable CS0618
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -68,6 +72,40 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class PersistentDetaches : MonoBehaviourSingletonPersistent<PersistentDetaches> { }
     internal class PersistentDeferredDedupe : MonoBehaviourSingletonPersistent<PersistentDeferredDedupe> { }
     internal class PersistentFrame : MonoBehaviourSingletonPersistent<PersistentFrame> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAbsentInPlay : MonoBehaviourSingleton<FindOnlyAbsentInPlay> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAvailableInPlay : MonoBehaviourSingleton<FindOnlyAvailableInPlay> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class PersistentFindOnly : MonoBehaviourSingletonPersistent<PersistentFindOnly> { }
+
+    /// <summary>Records whether its own Awake has run, so a reader can prove it got there first.</summary>
+    internal class PersistentReadBeforeAwake : MonoBehaviourSingletonPersistent<PersistentReadBeforeAwake>
+    {
+        public static bool AwakeRan;
+
+        protected override void Awake()
+        {
+            base.Awake();
+            AwakeRan = true;
+        }
+    }
+
+    /// <summary>Reads the singleton from its own Awake and records whether that beat the singleton's.</summary>
+    internal class ReadsPersistentInAwake : MonoBehaviour
+    {
+        public bool ReadBeforeSingletonAwake { get; private set; }
+        public PersistentReadBeforeAwake Seen { get; private set; }
+
+        private void Awake()
+        {
+            ReadBeforeSingletonAwake = !PersistentReadBeforeAwake.AwakeRan;
+            Seen = PersistentReadBeforeAwake.Instance;
+        }
+    }
 
     internal class PassivePersistentGoesToDdol : MonoBehaviourSingletonPassivePersistent<PassivePersistentGoesToDdol> { }
     internal class PassivePersistentDuplicate : MonoBehaviourSingletonPassivePersistent<PassivePersistentDuplicate> { }

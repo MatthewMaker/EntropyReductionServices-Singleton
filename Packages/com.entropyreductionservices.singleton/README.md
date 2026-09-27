@@ -41,18 +41,21 @@ private void OnDestroy()
 }
 ```
 
-## Four flavours
+## Flavours
 
-| Type | Creates itself | Survives scene load |
-|---|---|---|
-| `MonoBehaviourSingleton<T>` | yes | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes | yes |
-| `MonoBehaviourSingletonPassive<T>` | no | no |
-| `MonoBehaviourSingletonPassivePersistent<T>` | no | yes |
+| Type | Survives scene load |
+|---|---|
+| `MonoBehaviourSingleton<T>` | no |
+| `MonoBehaviourSingletonPersistent<T>` | yes |
 
-Auto flavours resolve from the scene, then `Resources`, then a new `GameObject`, and suit
-stateless services whose existence is an implementation detail. Passive flavours never create
-anything and suit objects that must be authored, carrying inspector state or scene references.
+Both resolve from the scene, then `Resources`, then a new `GameObject`, and suit stateless
+services whose existence is an implementation detail. For objects that must be authored, carrying
+inspector state or scene references, add `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`:
+`Instance` then resolves from the scene only and throws if nothing was authored.
+
+The passive flavours, `MonoBehaviourSingletonPassive<T>` and
+`MonoBehaviourSingletonPassivePersistent<T>`, are deprecated in favour of `FindOnly` and will be
+removed in 3.0.0.
 
 ## Analyzers
 

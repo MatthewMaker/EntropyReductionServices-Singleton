@@ -42,6 +42,34 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
                 "Awake should have called DontDestroyOnLoad on the winning instance");
         }
 
+        [Test]
+        public void Persistent_ResolvedBeforeItsOwnAwake_IsStillMadePersistent()
+        {
+            // A scene-authored persistent singleton can be found by another object's Awake before
+            // its own Awake has run. The search caches it, so its Awake then sees itself already
+            // in the slot. Activating an inactive root wakes the children in order, which puts the
+            // reader first.
+            var root = new GameObject("Root");
+            root.SetActive(false);
+            SceneManager.MoveGameObjectToScene(root, _scene);
+
+            var reader = new GameObject("Reader");
+            reader.transform.SetParent(root.transform);
+            var readerProbe = reader.AddComponent<ReadsPersistentInAwake>();
+
+            var host = new GameObject("Singleton");
+            host.transform.SetParent(root.transform);
+            var singleton = host.AddComponent<PersistentReadBeforeAwake>();
+
+            root.SetActive(true);
+
+            Assert.IsTrue(readerProbe.ReadBeforeSingletonAwake, "the reader must wake first for this to test anything");
+            Assert.AreSame(singleton, readerProbe.Seen, "the reader should have found the authored instance");
+            Assert.AreSame(singleton, PersistentReadBeforeAwake.Instance);
+            Assert.IsTrue(Probes.IsPersistent(singleton.gameObject),
+                "resolving it before its Awake must not cost it DontDestroyOnLoad");
+        }
+
         [UnityTest]
         public IEnumerator Persistent_SurvivesTheUnloadOfTheSceneItWasBornIn()
         {

@@ -1,7 +1,7 @@
 # The contract
 
 What this package guarantees, what it asks of you in return, and where it will not help. The
-companion documents are [singletons.md](singletons.md), which teaches the four flavours and why
+companion documents are [singletons.md](singletons.md), which teaches the flavours and why
 they exist, and [analyzers.md](analyzers.md), which documents the rules that enforce the parts of
 this contract a compiler can check.
 
@@ -9,7 +9,8 @@ this contract a compiler can check.
 
 - One well-known access point per component type, correct across scene loads, editor domain
   reload, and application shutdown.
-- Four flavours expressing genuinely different contracts, not four spellings of one.
+- Each flavour and creation policy expresses a genuinely different contract, not another spelling
+  of one.
 - Failures surface at the mistake, not three call sites downstream.
 - No `UnityEditor` dependency, so the runtime drops into any assembly.
 
@@ -21,8 +22,12 @@ this contract a compiler can check.
 - `Instance` never returns null once the singleton has existed. During teardown it returns the
   component that held the slot — a live C# object whose native peer is gone — so a bare
   dereference reaches something. See [Teardown](#teardown) for the limits.
-- `MonoBehaviourSingletonPassive<T>.Instance` is null until some component's `Awake` claims the
-  slot, and never auto-creates.
+- Under `[SingletonCreation(FindOnly)]` nothing is ever created: `Instance` resolves from the loaded
+  scenes or throws `MissingSingletonException`, in play mode and edit mode alike.
+- A persistent singleton is made persistent even when another object resolved it before its own
+  `Awake` ran.
+- The deprecated `MonoBehaviourSingletonPassive<T>.Instance` is null until some component's `Awake`
+  claims the slot, and never auto-creates.
 - Nothing is created during teardown: neither after `Application.quitting` has fired, nor in the
   frame in which a scene unload destroyed the singleton.
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
@@ -128,7 +133,7 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 
 - Plain `MonoBehaviourSingleton<T>` declares no `Awake`, so it never claims the slot or destroys
   duplicates — it picks one and logs the rest. Two scene-authored instances both survive. Use a
-  Persistent or Passive flavour if you want enforcement.
+  Persistent flavour if you want enforcement.
 - `FindObjectsInactive.Exclude` misses singletons on inactive objects; a duplicate can be created
   and will self-destruct only when the inactive one is enabled.
 - Edit-mode transients lose all state on every recompile.

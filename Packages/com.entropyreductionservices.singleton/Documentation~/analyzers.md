@@ -243,6 +243,9 @@ not followed. Reading `hideFlags` is fine.
 
 ## ers0010 — no passive `Instance` in `Awake` or `OnEnable`
 
+The passive flavours are deprecated; `[SingletonCreation(SingletonCreationPolicy.FindOnly)]` on a
+lazy singleton resolves by scene search and has no such race. Until they are removed:
+
 A passive singleton's `Instance` is null until the singleton's own `Awake` claims the slot. Unity
 does not order `Awake` across objects, and during a scene load it runs each object's `OnEnable`
 straight after that object's `Awake`, before the next object wakes. So a read from another

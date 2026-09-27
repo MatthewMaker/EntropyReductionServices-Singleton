@@ -68,27 +68,49 @@ is deliberate — the older form of this code accepted it and threw at runtime i
 
 ## Choosing a flavor
 
-| | Auto-creates | Survives scene load |
-|---|---|---|
-| `MonoBehaviourSingleton<T>` | yes | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes | yes |
-| `MonoBehaviourSingletonPassive<T>` | no | no |
-| `MonoBehaviourSingletonPassivePersistent<T>` | no | yes |
+| | Survives scene load |
+|---|---|
+| `MonoBehaviourSingleton<T>` | no |
+| `MonoBehaviourSingletonPersistent<T>` | yes |
 
-**Auto-creating** flavors resolve `Instance` on demand: they search the loaded scenes, then try
-`Resources`, then create a bare GameObject. `Instance` is non-null the entire time the application
-is running. Use these for stateless services whose existence is an implementation detail — an audio
-router, a coroutine host, a logging sink.
+Both resolve `Instance` on demand: they search the loaded scenes, then try `Resources`, then create
+a bare GameObject. `Instance` is non-null the entire time the application is running. That suits
+stateless services whose existence is an implementation detail — an audio router, a coroutine
+host, a logging sink.
 
-**Passive** flavors never create anything. `Instance` is null until some component's `Awake` claims
-the slot. Use these when the object must be authored — when it carries inspector-configured state,
-scene references, or anything that would be wrong if silently conjured from nothing. If a
-teardown-time null would genuinely break your callers, the answer is usually that the type should
-be passive and scene-authored rather than lazily created.
+**Authored singletons.** When the object must be authored — it carries inspector-configured state,
+scene references, or anything that would be wrong if silently conjured from nothing — forbid
+creation:
+
+```csharp
+[SingletonCreation(SingletonCreationPolicy.FindOnly)]
+public class LevelDirector : MonoBehaviourSingleton<LevelDirector>
+{
+    [SerializeField] private LevelData _level;
+}
+```
+
+`Instance` then resolves from the loaded scenes only, in play mode and edit mode alike. If nothing
+was authored it throws `MissingSingletonException` naming the policy, rather than returning null or
+building a stand-in with default fields. Because the lookup is a scene search, an instance whose own
+`Awake` has not run yet is still found, so reading it from another object's `Awake` is not a race.
+Where the singleton is genuinely optional, ask `ExistsOrFindInScene()` first: it is the only
+accessor that searches, while `IsAvailable`, `Exists` and `TryGetInstance` read the cache alone.
 
 **Persistent** variants call `DontDestroyOnLoad` and destroy duplicates that appear on later scene
 loads. Plain `MonoBehaviourSingleton<T>` declares no `Awake` at all, so it does not deduplicate — it
-picks one instance and logs the others. If you want enforcement, use a persistent or passive flavor.
+picks one instance and logs the others. If you want enforcement, use the persistent flavor.
+
+### Deprecated: the passive flavors
+
+`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` never create,
+and their `Instance` is null until the singleton's own `Awake` claims the slot — so a read from
+another object's `Awake` or `OnEnable` races it (ERS0010). They are marked `[Obsolete]` and will be
+removed in 3.0.0. To migrate, derive from `MonoBehaviourSingleton<T>` or
+`MonoBehaviourSingletonPersistent<T>` and add `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`.
+Two behaviours change: `Instance` throws instead of returning null when nothing is authored, and
+`MonoBehaviourSingletonPassive<T>` destroyed duplicates where plain `MonoBehaviourSingleton<T>`
+only logs them.
 
 ## The contract
 
@@ -203,7 +225,7 @@ is skipped, since it is play-mode-only and logs an error otherwise.
 
 That last point has a consequence worth knowing: an edit-mode singleton loses all state on every
 script recompile. For stateless service objects this is invisible. If a type accumulates editor-time
-state you expect to survive a reload, make it passive and author it in a scene.
+state you expect to survive a reload, mark it `FindOnly` and author it in a scene.
 
 Some types should not be conjured by an inspector drawing itself — anything that claims hardware,
 opens sockets, or spins up threads. Opt those out:

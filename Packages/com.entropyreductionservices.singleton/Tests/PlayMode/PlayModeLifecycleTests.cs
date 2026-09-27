@@ -100,6 +100,31 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         }
 
         [Test]
+        public void CreationFindOnly_DuringPlay_ThrowsAndCreatesNothing()
+        {
+            Assert.IsFalse(FindOnlyAbsentInPlay.IsAvailable,
+                "the play-mode shortcut must not claim availability for a type that cannot create");
+            Assert.Throws<MissingSingletonException>(() => _ = FindOnlyAbsentInPlay.Instance);
+            Assert.AreEqual(0, Resources.FindObjectsOfTypeAll<FindOnlyAbsentInPlay>().Length,
+                "neither Resources nor a bare GameObject may have been used");
+        }
+
+        [Test]
+        public void CreationFindOnly_DuringPlay_ResolvesAnAuthoredInstance()
+        {
+            var authored = Probes.AuthorIn<FindOnlyAvailableInPlay>(_scene, "Probe");
+            Assert.AreSame(authored, FindOnlyAvailableInPlay.Instance);
+        }
+
+        [Test]
+        public void CreationFindOnly_OnThePersistentFlavour_ClaimsAndPersists()
+        {
+            var authored = Probes.AuthorIn<PersistentFindOnly>(_scene, "Probe");
+            Assert.AreSame(authored, PersistentFindOnly.Instance);
+            Assert.IsTrue(Probes.IsPersistent(authored.gameObject));
+        }
+
+        [Test]
         public void FramePromoted_RecordsTheFrameTheSlotWasClaimed()
         {
             var probe = Probes.AuthorIn<PersistentFrame>(_scene, "Probe");

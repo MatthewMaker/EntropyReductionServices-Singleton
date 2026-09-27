@@ -17,6 +17,34 @@ namespace EntropyReductionServices.Singletons.Tests
         }
 
         [Test]
+        public void CreationFindOnly_ResolvesAnAuthoredInstance()
+        {
+            var authored = Fixtures.Author<FindOnlyPresent>("Authored FindOnly creation");
+            Assert.AreSame(authored, FindOnlyPresent.Instance);
+        }
+
+        [Test]
+        public void CreationFindOnly_EmptyScene_ThrowsAndCreatesNothing()
+        {
+            // The default edit-mode policy, CreateTransient, would create here. The creation
+            // policy forbids it, and the exception names that policy rather than the edit-mode one.
+            var thrown = Assert.Throws<MissingSingletonException>(() => _ = FindOnlyAbsent.Instance);
+            StringAssert.Contains("SingletonCreation(FindOnly)", thrown.Message);
+            Assert.AreEqual(0, Resources.FindObjectsOfTypeAll<FindOnlyAbsent>().Length,
+                "reading Instance must not have brought anything into existence");
+        }
+
+        [Test]
+        public void CreationFindOnly_IsAvailable_TracksTheCacheNotThePolicyShortcut()
+        {
+            Assert.IsFalse(FindOnlyAvailability.IsAvailable, "nothing can be created and nothing is cached");
+
+            Fixtures.Author<FindOnlyAvailability>("Authored FindOnly creation availability");
+            Assert.IsTrue(FindOnlyAvailability.ExistsOrFindInScene());
+            Assert.IsTrue(FindOnlyAvailability.IsAvailable, "cached by the search");
+        }
+
+        [Test]
         public void Instance_WhenNothingExists_CreatesOne()
         {
             Assert.IsNotNull(AutoCreates.Instance);

@@ -8,6 +8,11 @@ All notable changes to this package are documented here. The format follows
 
 ### Added
 
+- **`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`** forbids a lazy singleton from
+  creating an instance, in play mode and edit mode. `Instance` resolves from the loaded scenes or
+  throws `MissingSingletonException` naming the policy; `IsAvailable` no longer claims availability
+  for a type that cannot create.
+
 - **ERS0008** reports a lazy singleton's `Instance` read from `OnValidate`, `OnBeforeSerialize` or
   `OnAfterDeserialize`, where the search and creation it may perform are unsupported.
 - **ERS0009** reports an assignment to `hideFlags` on a singleton or its `GameObject`, which hides
@@ -22,7 +27,20 @@ All notable changes to this package are documented here. The format follows
   that is not persistent. A private, non-serialized field on a `Component` holding a persistent
   singleton is no longer reported. The message now says which of these applies.
 
+### Deprecated
+
+- **`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>`** are marked
+  `[Obsolete]` and will be removed in 3.0.0. Use `MonoBehaviourSingleton<T>` or
+  `MonoBehaviourSingletonPersistent<T>` with `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`.
+  `Instance` then throws instead of returning null when nothing is authored, and the plain lazy
+  flavour logs duplicates where `MonoBehaviourSingletonPassive<T>` destroyed them.
+
 ### Fixed
+
+- **A scene-authored persistent singleton resolved before its own `Awake` is now made
+  persistent.** Its `Awake` persisted it only when it claimed an empty slot. When another object's
+  `Awake` had already resolved it through the scene search, it found itself in the slot and did
+  nothing, so it was destroyed with its scene.
 
 - **The package compiles on Unity 6000.3, its declared minimum.** Scene lookup called the
   `FindObjectsByType<T>(FindObjectsInactive)` overload, which only exists from 6000.4, so the
