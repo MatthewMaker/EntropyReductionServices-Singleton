@@ -409,10 +409,10 @@ namespace Client
     }
 }");
 
-        // -- ERS0006: '?.' on a lazy singleton's Instance ---------------------------------------
+        // -- ERS0006: '?.' on a singleton's Instance --------------------------------------------
 
         /// <summary>
-        /// Outside teardown a lazy Instance cannot be null, so '?.' is dead rather than dangerous.
+        /// Outside teardown Instance cannot be null, so '?.' is dead rather than dangerous.
         /// ERS0006 rather than ERS0003, and exactly one of them.
         /// </summary>
         [Test]
@@ -508,7 +508,7 @@ namespace Client
 }");
 
 
-        // -- ERS0008: a lazy Instance read from a serialization callback -----------------------
+        // -- ERS0008: an Instance read from a serialization callback ----------------------------
 
         [Test]
         public Task ERS0008_OnValidate_IsReported() => Harness.Verify(@"

@@ -90,7 +90,7 @@ usages, side effects and known gaps. Read it before relying on any of them.
 
 ### OpenUPM
 
-The OpenUPM listing is pending; the first version published there will be 3.0.0. Once it is live:
+Published on OpenUPM from 3.0.0; earlier versions are not there.
 
 ```zsh
 openupm add com.entropyreductionservices.singleton
@@ -119,7 +119,7 @@ Every release from 2.6.0 attaches a signed `.tgz` to its GitHub Release. Drop it
 your project and reference it by relative path:
 
 ```json
-"com.entropyreductionservices.singleton": "file:../Packages/com.entropyreductionservices.singleton-2.6.0.tgz"
+"com.entropyreductionservices.singleton": "file:../Packages/com.entropyreductionservices.singleton-3.0.0.tgz"
 ```
 
 Both routes give a versioned, resolvable dependency that upgrades and rolls back cleanly.
@@ -130,7 +130,7 @@ Nine Roslyn rules ship with the package and apply to your assembly automatically
 references `EntropyReductionServices.Singletons` — no asset labels, no manifest entries, nothing
 copied into your `Assets` folder. They catch the contract violations that are statically
 checkable: a missing or misplaced `base.Awake()`, caching `Instance` in a field, unguarded teardown
-access, `?.` on a lazy `Instance`, access during `MonoBehaviour` construction or a serialization
+access, `?.` on `Instance`, access during `MonoBehaviour` construction or a serialization
 callback, `Awake` declared without `override`, and `hideFlags` set on a singleton.
 
 All nine ship as warnings, because they arrive with your first reference to the package rather

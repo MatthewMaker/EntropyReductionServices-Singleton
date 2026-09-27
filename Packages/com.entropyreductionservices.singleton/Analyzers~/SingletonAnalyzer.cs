@@ -296,7 +296,7 @@ namespace EntropyReductionServices.Analyzers
         }
 
         /// <summary>
-        /// ERS0006: '?.' on a lazy singleton's Instance, outside a teardown callback.
+        /// ERS0006: '?.' on a singleton's Instance, outside a teardown callback.
         ///
         /// Runs last and only when TryReportTeardown declined, so a '?.' inside OnDestroy is
         /// reported once, as ERS0003 — the more serious reading, since there the operator looks
@@ -358,7 +358,7 @@ namespace EntropyReductionServices.Analyzers
         private const string OnAfterDeserializeName = "OnAfterDeserialize";
 
         /// <summary>
-        /// ERS0008: a lazy singleton's Instance read directly in OnValidate on a UnityEngine.Object,
+        /// ERS0008: a singleton's Instance read directly in OnValidate on a UnityEngine.Object,
         /// or in OnBeforeSerialize / OnAfterDeserialize on an ISerializationCallbackReceiver.
         ///
         /// A read inside a lambda, anonymous method or local function is not reported: deferring

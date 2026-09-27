@@ -124,7 +124,27 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         public static bool WasAvailable = true;
         public static bool GotTombstone;
         public static bool GotFreshObject;
+        public static string FreshScene;
         public static int Destroys;
+
+        /// <summary>
+        /// Whether OnDestroy reads Instance. A test disarms it once the destroy it means to observe
+        /// has happened: where the read builds a replacement, destroying that replacement in
+        /// teardown would otherwise build another, and leak it into the next test.
+        /// </summary>
+        public static bool Armed = true;
+
+        /// <summary>Clears what was witnessed, for a test that runs more than once per type.</summary>
+        public static void Reset()
+        {
+            SawWindow = false;
+            WasAvailable = true;
+            GotTombstone = false;
+            GotFreshObject = false;
+            FreshScene = null;
+            Destroys = 0;
+            Armed = true;
+        }
 
         /// <summary>True when the read inside OnDestroy is wanted; off for ordinary-destroy tests,
         /// where resurrecting is correct behaviour and would leak a probe into the next test.</summary>
@@ -143,25 +163,24 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             SawWindow = SingletonRuntime.IsUnloadingScene;
             WasAvailable = IsAvailable;
 
-            if (!ReadsInstance) return;
+            if (!ReadsInstance || !Armed) return;
 
             var got = Instance;                     // the read that used to resurrect
             GotTombstone = ReferenceEquals(got, this);
             GotFreshObject = !ReferenceEquals(got, this) && !ReferenceEquals(got, null);
+            if (GotFreshObject) FreshScene = got.gameObject.scene.name;
         }
 #pragma warning restore ERS0007
     }
 
-    internal class UnloadTombstoneWitness : TeardownWitness<UnloadTombstoneWitness> { }
-    internal class UnloadAvailabilityWitness : TeardownWitness<UnloadAvailabilityWitness> { }
+    internal class UnloadInactiveWitness : TeardownWitness<UnloadInactiveWitness> { }
+    internal class SceneChangeTombstoneWitness : TeardownWitness<SceneChangeTombstoneWitness> { }
 
     internal class UnloadIndividualWitness : TeardownWitness<UnloadIndividualWitness>
     {
         protected override bool ReadsInstance => false;
     }
 
-    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
-    internal class UnloadWindowCloses : MonoBehaviourSingleton<UnloadWindowCloses> { }
     internal class UnloadDdolSurvivesFilter : MonoBehaviourSingleton<UnloadDdolSurvivesFilter> { }
 
     // The bystander must not persist, or it would rebuild itself on a new object and the test
@@ -181,6 +200,31 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
         [SerializeField] private int _configured;
         public int Configured => _configured;
     }
+
+    // --- Single-mode scene change -----------------------------------------------------------------
+
+    /// <summary>
+    /// Created lazily in the scene a test loads over, and read again by SceneChangeReader's Awake
+    /// in the scene that replaces it. Records the frame of its destruction so a failure can say
+    /// whether the read landed in the same frame.
+    /// </summary>
+    [SingletonLifetime(SingletonLifetimePolicy.Scene)]
+    internal class SceneChangeLazy : MonoBehaviourSingleton<SceneChangeLazy>
+    {
+        public static int DestroyFrame = -1;
+
+        protected override void OnDestroy()
+        {
+            DestroyFrame = Time.frameCount;
+            base.OnDestroy();
+        }
+    }
+
+    /// <summary>
+    /// Never destroyed by the scene change: read by SceneChangeReader's Awake for the first time,
+    /// to show that a type the unload did not touch can still be created then.
+    /// </summary>
+    internal class SceneChangeUnrelated : MonoBehaviourSingleton<SceneChangeUnrelated> { }
 
     internal class AutoPlayMode : MonoBehaviourSingleton<AutoPlayMode> { }
     [SingletonLifetime(SingletonLifetimePolicy.Scene)]

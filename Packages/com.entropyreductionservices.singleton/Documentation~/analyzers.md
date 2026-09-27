@@ -14,9 +14,9 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0003 | Warning | Guard teardown access to a singleton's Unity members |
 | ERS0004 | Warning | Do not access a singleton during MonoBehaviour construction |
 | ERS0005 | Warning | Singleton message must be declared with `override` |
-| ERS0006 | Warning | Null-conditional access on a lazy singleton's `Instance` is misleading |
+| ERS0006 | Warning | Null-conditional access on a singleton's `Instance` is misleading |
 | ERS0007 | Warning | Singleton base call is in the wrong position |
-| ERS0008 | Warning | Do not read a lazy singleton's `Instance` from a serialization callback |
+| ERS0008 | Warning | Do not read a singleton's `Instance` from a serialization callback |
 | ERS0009 | Warning | Do not set `hideFlags` on a singleton |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
@@ -25,6 +25,8 @@ opt-in, and a false positive should not break a build you never asked to have li
 them locally — see *Retuning severities* below.
 
 ---
+
+<a id="ers0001"></a>
 
 ## ers0001 — override must call base
 
@@ -36,13 +38,15 @@ reference to a destroyed object.
 protected override void Awake()
 {
     base.Awake();          // required
-    _mixer = GetComponent<AudioMixer>();
+    _source = GetComponent<AudioSource>();
 }
 ```
 
 The check is flow-insensitive: a `base.Awake()` anywhere in the declaration satisfies it, including
 inside a branch. Proving the call always executes would trade real false negatives for marginal
 precision.
+
+<a id="ers0002"></a>
 
 ## ers0002 — do not cache Instance in a field
 
@@ -75,9 +79,11 @@ private void Update()
 }
 ```
 
+<a id="ers0003"></a>
+
 ## ers0003 — guard teardown access to Unity members
 
-During teardown — application quit, or the frame in which a scene unload destroyed it — `Instance`
+During teardown — application quit, or while the active scene is being unloaded — `Instance`
 returns the component that held the slot, still a live C# object after its native peer is gone.
 
 **Calling your own members on it is safe and is not reported.** This is the common teardown shape
@@ -125,12 +131,16 @@ majority, and a rule that fires mostly on correct code gets switched off wholesa
 `SetActive(false)`, a disabled component, a pooled object returning to its pool — and the analyzer
 cannot tell the two apart.
 
+<a id="ers0004"></a>
+
 ## ers0004 — no access during construction
 
 Field initializers and constructors on a `MonoBehaviour` run on Unity's deserialization path, where
 `FindObjectsByType` and `new GameObject` throw. Move the access to `Awake`, `OnEnable` or `Start`.
 Static field initializers are reported as ERS0002 instead, since their hazard is staleness rather
 than timing.
+
+<a id="ers0005"></a>
 
 ## ers0005 — declare the message with `override`
 
@@ -140,7 +150,9 @@ runs — the same end state as ERS0001, reached by a different mistake.
 
 ---
 
-## ers0006 — no null-conditional on a lazy Instance
+<a id="ers0006"></a>
+
+## ers0006 — no null-conditional on Instance
 
 `MonoBehaviourSingleton<T>` resolves, creates, or throws. Its `Instance` does not return null while the application is running, and during teardown it
 returns the destroyed component — which `?.` does not stop, because the operator tests the
@@ -156,6 +168,8 @@ AudioBus.Instance.Play(clip);        // not AudioBus.Instance?.Play(clip)
 Inside `OnDestroy` or `OnApplicationQuit` the same expression is reported as ERS0003 instead —
 one diagnostic, the more serious reading.
 
+<a id="ers0007"></a>
+
 ## ers0007 — put the base call in the right place
 
 ERS0001 asks only whether the base call happens. This asks where. Both of the following satisfy
@@ -164,7 +178,7 @@ ERS0001 and are still wrong:
 ```csharp
 protected override void Awake()
 {
-    _mixer = GetComponent<AudioMixer>();   // runs even on a duplicate about to destroy itself
+    _source = GetComponent<AudioSource>(); // runs even on a duplicate about to destroy itself
     base.Awake();                          // ERS0007 — claims the slot too late
 }
 
@@ -179,7 +193,7 @@ protected override void OnDestroy()
 releases the slot, so it belongs **last**:
 
 ```csharp
-protected override void Awake()     { base.Awake(); _mixer = GetComponent<AudioMixer>(); }
+protected override void Awake()     { base.Awake(); _source = GetComponent<AudioSource>(); }
 protected override void OnDestroy() { _sources.Clear(); base.OnDestroy(); }
 ```
 
@@ -188,10 +202,12 @@ in an `if`, a loop or a local function is left alone — ERS0001 deliberately ac
 their position is not a simple ordering question. An expression-bodied override is first and last
 at once, so it is never reported.
 
-## ers0008 — no lazy `Instance` in serialization callbacks
+<a id="ers0008"></a>
+
+## ers0008 — no `Instance` in serialization callbacks
 
 `OnValidate`, `OnBeforeSerialize` and `OnAfterDeserialize` run on Unity's serialization path, where
-object lookup and creation are unsupported and can throw. The first read of a lazy singleton's
+object lookup and creation are unsupported and can throw. The first read of a singleton's
 `Instance` may do both:
 
 ```csharp
@@ -214,6 +230,8 @@ private void OnValidate()
 `ISerializationCallbackReceiver`. A read inside a lambda, anonymous method or local function is
 not reported, since that is how the deferral is written and the analyzer cannot tell a deferred
 delegate from one invoked on the spot.
+
+<a id="ers0009"></a>
 
 ## ers0009 — do not set `hideFlags` on a singleton
 
@@ -265,6 +283,8 @@ to keep all of them.
     <Rule Id="ERS0005" Action="None" />
     <Rule Id="ERS0006" Action="None" />
     <Rule Id="ERS0007" Action="None" />
+    <Rule Id="ERS0008" Action="None" />
+    <Rule Id="ERS0009" Action="None" />
   </Rules>
 </RuleSet>
 ```

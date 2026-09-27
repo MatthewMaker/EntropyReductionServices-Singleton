@@ -1,7 +1,7 @@
 # The analyzer is a plain netstandard2.0 library, so it builds and tests without Unity — no
-# editor image, no licence, a couple of minutes. Split from the Unity workflow so it can be
-# enabled on its own: Unity cannot pass here yet, and one workflow holding both meant turning
-# off the only checks that do.
+# editor image, no licence, a couple of minutes. Split from the Unity workflow (ci.yml) so that
+# workflow could be disabled without also disabling these checks, and so pull requests get fast
+# feedback: the Unity job skips them.
 name: Analyzer
 
 on:

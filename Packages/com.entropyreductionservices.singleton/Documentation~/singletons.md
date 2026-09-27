@@ -8,7 +8,7 @@ you need a precise answer. This document is the explanation.
 
 ## The problem
 
-A Unity singleton is usually fifteen lines:
+A Unity singleton is usually a few lines:
 
 ```csharp
 public class AudioBus : MonoBehaviour
@@ -43,18 +43,19 @@ persistent.
 
 ```csharp
 using EntropyReductionServices.Singletons;
+using UnityEngine;
 
 public class AudioBus : MonoBehaviourSingleton<AudioBus>
 {
-    private AudioMixer _mixer;
+    private AudioSource _source;
 
     protected override void Awake()
     {
         base.Awake();                       // claims the slot, destroys duplicates
-        _mixer = GetComponent<AudioMixer>();
+        _source = GetComponent<AudioSource>();
     }
 
-    public void Play(AudioClip clip) { /* … */ }
+    public void Play(AudioClip clip) => _source.PlayOneShot(clip);
 }
 ```
 
@@ -118,10 +119,14 @@ The summary below is what you need to write correct calling code. The complete, 
 > teardown. `Instance` never returns null once the singleton has existed: during teardown it
 > hands back the destroyed component instead.
 
-**Teardown** means two windows. The application is quitting, or a scene unload has destroyed the
-singleton — for the rest of that frame. In both, `Instance` refuses to build a replacement,
-because recreating a singleton then drops a GameObject into a scene that is going away and runs
-its `Awake` against subsystems that may already be shutting down. That half is not negotiable.
+**Teardown** means two windows. The application is quitting, or the active scene — where a
+replacement would be created — is being unloaded. In both, `Instance` refuses to build a
+replacement, because recreating a singleton then drops a GameObject into a scene that is going
+away and runs its `Awake` against subsystems that may already be shutting down. That half is not
+negotiable.
+
+On a single-mode scene load, that second window covers the old scene's teardown and closes in the
+same frame, before the new scene's `Awake` runs, so the new scene can create what it needs.
 
 The other half is what keeps teardown code from having to be defensive about the common case.
 `Instance` returns the component that held the slot, still a live C# object even though its native
@@ -209,10 +214,11 @@ its own `Awake`, after that `Awake` has already run.
 `Instance` hands back the destroyed component (see [The contract](#the-contract)) with a single
 explanatory warning rather than one per call site.
 
-**Domain reload**, whether from recompiling or entering play mode, bumps a session counter on the
-non-generic `SingletonRuntime`. Every generic singleton records the session its cached instance was
+**Entering play mode** bumps a session counter on the non-generic `SingletonRuntime`, whether or
+not the domain is reloaded. Every generic singleton records the session its cached instance was
 captured in and discards anything stale on read. That is a static reset without reflection, and it
-is what makes disabled Domain Reload safe.
+is what makes disabled Domain Reload safe. A recompile needs none of this: its domain reload clears
+the statics outright.
 
 ## Edit mode
 
@@ -287,9 +293,10 @@ break in a build with these on. Don't match singletons by name.
 
 ## What this will not do
 
-- **Initialization order between singletons.** Lazy resolution cannot give you deterministic
-  construction order. If order matters, write an explicit bootstrapper; that is the right answer,
-  not a workaround.
+- **Initialization order beyond what references imply.** Lazy resolution already builds a
+  dependency before its first user. It cannot order side effects that no reference expresses,
+  break a cycle between two `Awake`s, or warm singletons up at a moment you choose. For those,
+  touch the `Instance`s you need from an explicit bootstrapper.
 - **Find singletons on inactive GameObjects.** The scene search excludes them, so a duplicate can
   be created and will self-destruct only when the inactive one is enabled.
 - **Thread safety.** Main thread only, like the rest of the Unity API.
@@ -301,6 +308,6 @@ break in a build with these on. Don't match singletons by name.
 
 Nine Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
 covering the rules above that are checkable: the required `base.Awake()` and its position, field
-caching, unguarded teardown access, `?.` on a lazy `Instance`, construction-time and
+caching, unguarded teardown access, `?.` on `Instance`, construction-time and
 serialization-callback access, `Awake` declared without `override`, and `hideFlags` set on a
 singleton. See [analyzers.md](analyzers.md).

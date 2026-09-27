@@ -76,7 +76,7 @@ namespace EntropyReductionServices.Analyzers
                          "cannot outlive it and is not reported, and neither is a local variable.");
 
         /// <summary>
-        /// ERS0003 — dereferencing Instance during teardown, where the contract allows null.
+        /// ERS0003 — dereferencing Instance during teardown, where it returns the destroyed component.
         /// </summary>
         public static readonly DiagnosticDescriptor UnguardedTeardownAccess = Rule(
             id: "ERS0003",
@@ -135,35 +135,35 @@ namespace EntropyReductionServices.Analyzers
                          "right place is a separate question.");
 
         /// <summary>
-        /// ERS0006 — '?.' on a lazy singleton's Instance outside teardown. The accessor cannot
-        /// return null there, so the operator is dead; and inside teardown it does not protect
-        /// anything, which ERS0003 covers. Either way it tells a reader the value may be null,
-        /// which for this flavour is never the useful thing to believe.
+        /// ERS0006 — '?.' on a singleton's Instance outside teardown. The accessor cannot return
+        /// null there, so the operator is dead; and inside teardown it does not protect anything,
+        /// which ERS0003 covers. Either way it tells a reader the value may be null, which for a
+        /// singleton is never the useful thing to believe.
         /// </summary>
         public static readonly DiagnosticDescriptor RedundantNullConditional = Rule(
             id: "ERS0006",
-            title: "Null-conditional access on a lazy singleton's Instance is misleading",
+            title: "Null-conditional access on a singleton's Instance is misleading",
             messageFormat: "'{0}.Instance' cannot be null here, so '?.' is dead; it also does not " +
                            "guard teardown. Dereference it directly",
-            description: "A lazy singleton's Instance resolves, creates, or throws — it does not " +
+            description: "A singleton's Instance resolves, creates, or throws — it does not " +
                          "return null while the application is running, and during teardown it " +
                          "returns the destroyed component, which '?.' does not stop because the " +
                          "operator tests the reference rather than Unity's == overload. The " +
-                         "operator therefore never does what it appears to do on this flavour.");
+                         "operator therefore never does what it appears to do on a singleton.");
 
         /// <summary>
-        /// ERS0008 — a lazy singleton's Instance read from OnValidate or a serialization callback.
+        /// ERS0008 — a singleton's Instance read from OnValidate or a serialization callback.
         /// A first read may search the scene and create a GameObject, and Unity does not support
         /// either while it is (de)serializing.
         /// </summary>
         public static readonly DiagnosticDescriptor SerializationCallbackAccess = Rule(
             id: "ERS0008",
-            title: "Do not read a lazy singleton's Instance from a serialization callback",
+            title: "Do not read a singleton's Instance from a serialization callback",
             messageFormat: "'{0}.{1}' reads '{2}.Instance', which may search the scene or create a " +
                            "GameObject; Unity does not support that during '{1}'",
             description: "OnValidate, OnBeforeSerialize and OnAfterDeserialize run on Unity's " +
                          "serialization path, where object lookup and creation are unsupported " +
-                         "and can throw. A lazy singleton's Instance does both on first read. " +
+                         "and can throw. A singleton's Instance does both on first read. " +
                          "Defer the access — for example to EditorApplication.delayCall inside " +
                          "OnValidate — or read it from Awake, OnEnable or Start. Access inside a " +
                          "lambda or local function is not reported, since that is how the " +
