@@ -218,17 +218,32 @@ definitions are committed under `.github/rulesets/` as a record:
 - **Actions:** every action must be pinned to a full-length commit SHA, and workflows on pull
   requests from all external contributors need approval. The default `GITHUB_TOKEN` is read-only.
 
-**Still to do: register the package with OpenUPM** at https://openupm.com/packages/add/, then edit
-the generated PR's YAML to add `trackingMode: githubRelease`, so it publishes the signed Release
-asset rather than packing the tag itself, and `minVersion: 3.0.0`, so 3.0.0 is the first version
-OpenUPM publishes and any 2.x releases stay on GitHub Releases and Verdaccio only. (No tag before
-2.6.0 has a signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a
-pre-rewrite commit that is not in this repository, so it was not backfilled.) Push no `v3.*` tag
-until that PR is merged, or OpenUPM's default tracker can publish an unsigned build first.
+**Still to do: register the package with OpenUPM** at https://openupm.com/packages/add/. The form
+reads `package.json` from `main` on GitHub, so push any description change first. Fill it in as:
+
+- **Repository** `MatthewMaker/EntropyReductionServices-Singleton`, then *Go*; branch `main`.
+- **readme.md** `README.md` at the root, not the package's: the package README links to
+  `Documentation~/…` relative to its own folder, the root one relative to the repository.
+- **Discovered by** `MatthewMaker`. The licence (`MIT License`) is filled in from the repository.
+- **Git tag prefix** and **Git tag ignore pattern** empty.
+- **Minimal version to build** `3.0.0`, so 3.0.0 is the first version OpenUPM publishes; 2.x and
+  the 3.0.0 pre-releases stay on GitHub Releases and Verdaccio only. (No tag before 2.6.0 has a
+  signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a pre-rewrite
+  commit that is not in this repository, so it was not backfilled.)
+- **Tracking mode** *publish GitHub Release asset*, so OpenUPM publishes the signed tarball rather
+  than packing the tag itself. **GitHub Release asset name** empty: every release carries exactly
+  one `.tgz`, which is the case the form says to leave it empty for.
+- **Cover image** empty; **Topics** *Utilities* only — OpenUPM removes packages for topic spam.
+
+*Submit metadata* opens the YAML in GitHub; commit it with the default `Create ...yml` message to
+open the PR. Push no `v3.*` release tag until that PR is merged, or OpenUPM's default tracker can
+publish an unsigned build first. Once merged, nothing is built until 3.0.0 is tagged, and OpenUPM
+removes packages with no release within three months, so tag it soon after.
 
 Set `gh variable set OPENUPM_ENABLED --body true` just before tagging v3.0.0, not when the package
-page appears: the `openupm` job asks OpenUPM to publish the pushed tag, and for a 2.x tag below
-`minVersion` there is nothing to publish — what the action reports then is untested.
+page appears: the `openupm` job asks OpenUPM to publish the pushed tag, and for a tag below
+`minVersion`, such as a 3.0.0 pre-release, there is nothing to publish — what the action reports
+then is untested.
 
 ## Non-obvious repo facts
 
