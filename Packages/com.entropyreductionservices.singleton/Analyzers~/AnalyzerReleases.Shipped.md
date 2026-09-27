@@ -2,6 +2,15 @@
 ; the table format is strict — no blank line after the section heading. See
 ; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
 
+## Release 2.6.0
+
+### New Rules
+Rule ID | Category | Severity | Notes
+--------|----------|----------|--------------------
+ERS0008 | Singleton | Warning | Do not read a lazy singleton's Instance from a serialization callback. [Documentation](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#ers0008)
+ERS0009 | Singleton | Warning | Do not set hideFlags on a singleton. [Documentation](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#ers0009)
+ERS0010 | Singleton | Warning | Do not read a passive singleton's Instance from Awake or OnEnable. [Documentation](https://github.com/MatthewMaker/EntropyReductionServices-Singleton/blob/main/Packages/com.entropyreductionservices.singleton/Documentation~/analyzers.md#ers0010)
+
 ## Release 2.2.0
 
 ### New Rules

@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.6.0]
+
 ### Added
 
 - **`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`** forbids a lazy singleton from
