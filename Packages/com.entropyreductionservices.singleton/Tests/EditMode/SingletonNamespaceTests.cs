@@ -1,3 +1,7 @@
+// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
+// file names them on purpose.
+#pragma warning disable CS0618
+
 using NUnit.Framework;
 using UnityEngine;
 
@@ -12,7 +16,7 @@ namespace EntropyReductionServices.Singletons.Tests
     /// analyzer build, the package build, or any other test. That shipped once — the constant
     /// still named a namespace (…Core.Util) the type had long since moved out of.
     ///
-    /// All three constants are covered, not just the base: a rename of MonoBehaviourSingleton&lt;T&gt;
+    /// Every constant is covered, not just the base: a rename of MonoBehaviourSingleton&lt;T&gt;
     /// would disable ERS0006 alone, which is quieter still.
     ///
     /// If one of these fails, update the matching constant in Analyzers~/SingletonAnalyzer.cs,
@@ -20,13 +24,22 @@ namespace EntropyReductionServices.Singletons.Tests
     /// </summary>
     public class SingletonNamespaceTests
     {
-        // Mirrors SingletonBaseMetadataName, LazySingletonMetadataName and
-        // MonoBehaviourMetadataName in Analyzers~/SingletonAnalyzer.cs.
+        // Mirrors the *MetadataName constants in Analyzers~/SingletonAnalyzer.cs, one case each.
         [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonBase`1",
             typeof(MonoBehaviourSingletonBase<>))]
         [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingleton`1",
             typeof(MonoBehaviourSingleton<>))]
+        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPersistent`1",
+            typeof(MonoBehaviourSingletonPersistent<>))]
+        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPassive`1",
+            typeof(MonoBehaviourSingletonPassive<>))]
+        [TestCase("EntropyReductionServices.Singletons.MonoBehaviourSingletonPassivePersistent`1",
+            typeof(MonoBehaviourSingletonPassivePersistent<>))]
         [TestCase("UnityEngine.MonoBehaviour", typeof(MonoBehaviour))]
+        [TestCase("UnityEngine.Component", typeof(Component))]
+        [TestCase("UnityEngine.Object", typeof(UnityEngine.Object))]
+        [TestCase("UnityEngine.ISerializationCallbackReceiver", typeof(ISerializationCallbackReceiver))]
+        [TestCase("UnityEngine.SerializeField", typeof(SerializeField))]
         public void RuntimeType_StillMatchesTheNameTheAnalyzerLooksUp(string expected, System.Type actual)
         {
             Assert.AreEqual(expected, actual.FullName,

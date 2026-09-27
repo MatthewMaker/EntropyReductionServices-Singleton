@@ -43,6 +43,44 @@ namespace EntropyReductionServices.Singletons
     }
 
     /// <summary>
+    /// Whether a lazy singleton may bring an instance into existence when Instance is read and
+    /// none is in the loaded scenes.
+    /// </summary>
+    public enum SingletonCreationPolicy
+    {
+        /// <summary>
+        /// Resolve from the loaded scenes, then instantiate from Resources, then create a bare
+        /// GameObject. Default: Instance never returns null while the application is running.
+        /// </summary>
+        CreateOnDemand,
+
+        /// <summary>
+        /// Resolve from the loaded scenes only; never instantiate or create. Reading Instance when
+        /// no instance is in the loaded scenes throws MissingSingletonException rather than
+        /// returning null, in play mode and in edit mode alike.
+        ///
+        /// For types that must be authored — inspector-configured state, scene references,
+        /// anything that would be wrong if conjured from nothing. Where the singleton is
+        /// legitimately optional, guard with ExistsOrFindInScene(), the only accessor that
+        /// searches: IsAvailable, Exists and TryGetInstance read the cache alone, so they report
+        /// false for an instance in the scene until something has resolved it.
+        /// </summary>
+        FindOnly
+    }
+
+    /// <summary>
+    /// Sets the creation policy of a lazy singleton. Applies in edit mode too, where
+    /// [SingletonEditMode] can only restrict it further.
+    /// </summary>
+    /// <example><code>[SingletonCreation(SingletonCreationPolicy.FindOnly)] public class LevelDirector : ...</code></example>
+    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
+    public sealed class SingletonCreationAttribute : Attribute
+    {
+        public SingletonCreationPolicy Policy { get; }
+        public SingletonCreationAttribute(SingletonCreationPolicy policy) => Policy = policy;
+    }
+
+    /// <summary>
     /// What an auto-creating singleton does when Instance is requested outside play mode and
     /// nothing exists yet.
     /// </summary>
@@ -89,8 +127,9 @@ namespace EntropyReductionServices.Singletons
 
     /// <summary>
     /// Thrown when Instance is required but cannot be produced for a reason that is a programming
-    /// or configuration error rather than a lifecycle fact — currently, requesting an instance from
-    /// a type that opted out of edit-mode resolution via [SingletonEditMode].
+    /// or configuration error rather than a lifecycle fact — requesting an instance that is not in
+    /// the loaded scenes from a type marked [SingletonCreation(FindOnly)], or from a type that
+    /// opted out of edit-mode resolution via [SingletonEditMode].
     /// Deliberately not thrown during application shutdown: that case returns null, because no
     /// amount of correct calling code can avoid it.
     /// </summary>
@@ -365,9 +404,34 @@ namespace EntropyReductionServices.Singletons
             }
         }
 
-        /// <summary>True when this type is allowed to create an instance in the current mode.</summary>
-        private static bool MayCreate =>
-            Application.isPlaying || EditModePolicy == SingletonEditModePolicy.CreateTransient;
+        private static SingletonCreationPolicy? s_creationPolicy;
+
+        /// <summary>
+        /// Resolves (once) whether this type may create an instance at all. Defaults to
+        /// CreateOnDemand, the lazy flavour's never-null contract.
+        /// </summary>
+        protected static SingletonCreationPolicy CreationPolicy
+        {
+            get
+            {
+                if (s_creationPolicy == null)
+                {
+                    var attr = Attribute.GetCustomAttribute(
+                        typeof(T), typeof(SingletonCreationAttribute), true) as SingletonCreationAttribute;
+                    s_creationPolicy = attr?.Policy ?? SingletonCreationPolicy.CreateOnDemand;
+                }
+
+                return s_creationPolicy.Value;
+            }
+        }
+
+        /// <summary>
+        /// True when this type is allowed to create an instance in the current mode: its creation
+        /// policy permits it, and outside play mode its edit-mode policy does too.
+        /// </summary>
+        protected static bool MayCreate =>
+            CreationPolicy == SingletonCreationPolicy.CreateOnDemand &&
+            (Application.isPlaying || EditModePolicy == SingletonEditModePolicy.CreateTransient);
 
         /// <summary>
         /// True when this type is allowed to resolve an *existing* instance in the current mode.
@@ -421,12 +485,24 @@ namespace EntropyReductionServices.Singletons
                 "TryGetInstance in teardown code.");
         }
 
-        /// <summary>Message for the configuration-error case, which throws rather than returning null.</summary>
-        protected static string PolicyViolationMessage() =>
-            $"{typeof(T).Name}.Instance was requested outside play mode, but the type is marked " +
-            $"[SingletonEditMode({EditModePolicy})] and no instance exists in the loaded scenes. " +
-            "Either place one in the scene, relax the policy to CreateTransient, or guard the call " +
-            "site with Application.isPlaying / TryGetInstance.";
+        /// <summary>
+        /// Message for the configuration-error case, which throws rather than returning null.
+        /// Names whichever policy stopped the resolution: the edit-mode one outside play mode when
+        /// it is the stricter, otherwise the creation policy.
+        /// </summary>
+        protected static string PolicyViolationMessage()
+        {
+            if (!Application.isPlaying && EditModePolicy != SingletonEditModePolicy.CreateTransient)
+                return $"{typeof(T).Name}.Instance was requested outside play mode, but the type is marked " +
+                       $"[SingletonEditMode({EditModePolicy})] and no instance exists in the loaded scenes. " +
+                       "Either place one in the scene, relax the policy to CreateTransient, or guard the call " +
+                       "site with Application.isPlaying / TryGetInstance.";
+
+            return $"{typeof(T).Name}.Instance was requested, but the type is marked " +
+                   $"[SingletonCreation({CreationPolicy})] and no instance exists in the loaded scenes. " +
+                   "Author one in the scene before it is read, or guard optional access with " +
+                   "ExistsOrFindInScene().";
+        }
 
         /// <summary>Resolves (once) the Resources path for this singleton type.</summary>
         private static string ResourcePath =>
@@ -836,8 +912,9 @@ namespace EntropyReductionServices.Singletons
     /// Lazy singleton: resolves from the scene, then Resources, then an empty GameObject.
     /// It will not resurrect itself during teardown — application quit or scene unload — which is
     /// what produced "leaked GameObject" warnings. Instance hands back the destroyed component in
-    /// that window. Outside play mode it either resolves or throws MissingSingletonException,
-    /// depending on [SingletonEditMode] — it does not return null.
+    /// that window. Under [SingletonCreation(FindOnly)], or outside play mode depending on
+    /// [SingletonEditMode], it either resolves from the scene or throws MissingSingletonException
+    /// — it does not return null.
     /// </summary>
     public abstract class MonoBehaviourSingleton<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingleton<T>
@@ -863,9 +940,11 @@ namespace EntropyReductionServices.Singletons
                 // IsTearingDown, not IsQuitting: the unconditional "true" below is only honest
                 // because Instance would create one on demand, and during an unload frame it
                 // will not. Reporting availability there would be a lie the caller acts on.
+                //
+                // Otherwise the shortcut holds exactly when Instance may create — which is never
+                // under [SingletonCreation(FindOnly)], and in edit mode only under CreateTransient.
                 if (SingletonRuntime.IsTearingDown) return Current != null;
-                if (Application.isPlaying) return true;
-                return EditModePolicy == SingletonEditModePolicy.CreateTransient || Current != null;
+                return MayCreate || Current != null;
             }
         }
 
@@ -881,8 +960,9 @@ namespace EntropyReductionServices.Singletons
         /// teardown code that needs more than managed state; everywhere else, dereference directly.
         /// </summary>
         /// <exception cref="MissingSingletonException">
-        /// The type opted out of edit-mode resolution and no instance exists. This is a
-        /// configuration error, so it fails here rather than as an NRE at an unrelated call site.
+        /// The type is marked [SingletonCreation(FindOnly)], or opted out of edit-mode resolution,
+        /// and no instance exists in the loaded scenes. This is a configuration error, so it fails
+        /// here rather than as an NRE at an unrelated call site.
         /// </exception>
         public static T Instance
         {
@@ -944,8 +1024,17 @@ namespace EntropyReductionServices.Singletons
 
     /// <summary>
     /// Passive singleton: Instance is null until some component's Awake claims the slot. Never
-    /// auto-creates, so it is the right choice for anything scene-authored or dependency-injected.
+    /// auto-creates.
+    ///
+    /// Deprecated in favour of MonoBehaviourSingleton&lt;T&gt; with
+    /// [SingletonCreation(SingletonCreationPolicy.FindOnly)], which also never creates but
+    /// resolves from the scene on read, so it has no Awake-order race. Two differences to know
+    /// when migrating: Instance throws MissingSingletonException instead of returning null when
+    /// none is authored, and the plain lazy flavour logs duplicates rather than destroying them.
     /// </summary>
+    [Obsolete("Use MonoBehaviourSingleton<T> with [SingletonCreation(SingletonCreationPolicy.FindOnly)]. " +
+              "Instance then throws MissingSingletonException instead of returning null when none is " +
+              "authored; use ExistsOrFindInScene() for optional presence. Removed in 3.0.0.")]
     public abstract class MonoBehaviourSingletonPassive<T> : MonoBehaviourSingletonBase<T>
         where T : MonoBehaviourSingletonPassive<T>
     {
@@ -983,7 +1072,14 @@ namespace EntropyReductionServices.Singletons
     /// Passive singleton that also survives scene loads. Only the winning instance is marked
     /// persistent. If we were to call DontDestroy() unconditionally, we'd briefly move a doomed
     /// duplicate into the DontDestroyOnLoad scene.
+    ///
+    /// Deprecated in favour of MonoBehaviourSingletonPersistent&lt;T&gt; with
+    /// [SingletonCreation(SingletonCreationPolicy.FindOnly)]. Instance then throws
+    /// MissingSingletonException instead of returning null when none is authored.
     /// </summary>
+    [Obsolete("Use MonoBehaviourSingletonPersistent<T> with [SingletonCreation(SingletonCreationPolicy.FindOnly)]. " +
+              "Instance then throws MissingSingletonException instead of returning null when none is " +
+              "authored; use ExistsOrFindInScene() for optional presence. Removed in 3.0.0.")]
     public abstract class MonoBehaviourSingletonPassivePersistent<T> : MonoBehaviourSingletonPassive<T>
         where T : MonoBehaviourSingletonPassivePersistent<T>
     {

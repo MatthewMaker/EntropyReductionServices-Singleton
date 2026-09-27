@@ -1,3 +1,7 @@
+// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
+// file names them on purpose.
+#pragma warning disable CS0618
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -68,6 +72,15 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
     internal class PersistentDetaches : MonoBehaviourSingletonPersistent<PersistentDetaches> { }
     internal class PersistentDeferredDedupe : MonoBehaviourSingletonPersistent<PersistentDeferredDedupe> { }
     internal class PersistentFrame : MonoBehaviourSingletonPersistent<PersistentFrame> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAbsentInPlay : MonoBehaviourSingleton<FindOnlyAbsentInPlay> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAvailableInPlay : MonoBehaviourSingleton<FindOnlyAvailableInPlay> { }
+
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class PersistentFindOnly : MonoBehaviourSingletonPersistent<PersistentFindOnly> { }
 
     /// <summary>Records whether its own Awake has run, so a reader can prove it got there first.</summary>
     internal class PersistentReadBeforeAwake : MonoBehaviourSingletonPersistent<PersistentReadBeforeAwake>

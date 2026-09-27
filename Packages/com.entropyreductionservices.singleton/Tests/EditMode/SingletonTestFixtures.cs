@@ -1,3 +1,7 @@
+// The deprecated passive flavours keep their coverage until they are removed in 3.0.0, so this
+// file names them on purpose.
+#pragma warning disable CS0618
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -131,6 +135,19 @@ namespace EntropyReductionServices.Singletons.Tests
     [SingletonEditMode(SingletonEditModePolicy.Disabled)]
     internal class AutoEditModeDisabledWithSceneInstance
         : MonoBehaviourSingleton<AutoEditModeDisabledWithSceneInstance> { }
+
+    // [SingletonCreation(FindOnly)] applies in edit mode too, under the default edit-mode policy.
+    [ExecuteAlways]
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyPresent : MonoBehaviourSingleton<FindOnlyPresent> { }
+
+    [ExecuteAlways]
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAbsent : MonoBehaviourSingleton<FindOnlyAbsent> { }
+
+    [ExecuteAlways]
+    [SingletonCreation(SingletonCreationPolicy.FindOnly)]
+    internal class FindOnlyAvailability : MonoBehaviourSingleton<FindOnlyAvailability> { }
 
     // --- MonoBehaviourSingletonPersistent<T> --------------------------------------------------
 

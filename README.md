@@ -59,25 +59,25 @@ its GameObject throws. So teardown code asks first, via `IsAvailable` or `TryGet
 `?.`, which tests the reference rather than Unity's `==` overload and so is not a guard here.
 Everywhere else, dereference directly.
 
-On the auto-creating flavors, anything other than teardown that leaves `Instance` unresolvable
-throws `MissingSingletonException` naming the type and the reason, so a configuration mistake fails
-where you made it rather than as a `NullReferenceException` in unrelated code forty frames later.
-Passive flavors never create, so their `Instance` is null until an authored instance claims the
-slot.
+Anything other than teardown that leaves `Instance` unresolvable throws `MissingSingletonException`
+naming the type and the reason, so a configuration mistake fails where you made it rather than as
+a `NullReferenceException` in unrelated code forty frames later.
 
-## Four flavors
+## Flavors
 
-| | Auto-creates | Survives scene load |
-|---|---|---|
-| `MonoBehaviourSingleton<T>` | yes | no |
-| `MonoBehaviourSingletonPersistent<T>` | yes | yes |
-| `MonoBehaviourSingletonPassive<T>` | no | no |
-| `MonoBehaviourSingletonPassivePersistent<T>` | no | yes |
+| | Survives scene load |
+|---|---|
+| `MonoBehaviourSingleton<T>` | no |
+| `MonoBehaviourSingletonPersistent<T>` | yes |
 
-Auto-creating flavors resolve on demand — scene search, then `Resources`, then a bare GameObject —
-and suit stateless services whose existence is an implementation detail. Passive flavors never
-create anything and suit objects that must be authored, carrying inspector state or scene
-references.
+Both resolve on demand — scene search, then `Resources`, then a bare GameObject — which suits
+stateless services whose existence is an implementation detail. For objects that must be authored,
+carrying inspector state or scene references, mark the type
+`[SingletonCreation(SingletonCreationPolicy.FindOnly)]`: `Instance` then resolves from the scene
+only, and throws if nothing was authored rather than conjuring a stand-in.
+
+`MonoBehaviourSingletonPassive<T>` and `MonoBehaviourSingletonPassivePersistent<T>` are deprecated
+in favour of `FindOnly`, and will be removed in 3.0.0.
 
 **[Read the full documentation →](Packages/com.entropyreductionservices.singleton/Documentation~/singletons.md)**
 for choosing between them, the lifecycle walkthrough, edit-mode behaviour, configuration
