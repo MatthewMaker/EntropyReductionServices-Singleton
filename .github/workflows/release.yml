@@ -223,8 +223,8 @@ jobs:
           fi
 
   openupm:
-    # Off until the repository variable OPENUPM_ENABLED is true. The package is registered with
-    # minVersion 3.0.0, so enable it just before tagging v3.0.0: OpenUPM builds nothing below that.
+    # Gated on the repository variable OPENUPM_ENABLED, true since v3.0.0. The package is
+    # registered with minVersion 3.0.0; OpenUPM builds nothing below that.
     #
     # Notifies OpenUPM so it publishes without waiting for its polling pipeline, and reports the
     # result here. It authenticates by GitHub OIDC; there is no token to configure.

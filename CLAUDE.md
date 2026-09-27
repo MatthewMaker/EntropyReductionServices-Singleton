@@ -62,7 +62,8 @@ release in three places:
 - `release.yml` creates a GitHub *pre-release*, never shown as the latest release, and publishes
   to Verdaccio under the npm dist-tag named by the label (`pre`, `rc`, `exp`), so `latest` stays
   on the last release.
-- OpenUPM's `minVersion: 3.0.0` excludes every 3.0.0 pre-release, since semver sorts them below it.
+- OpenUPM's `minVersion: 3.0.0` excluded the 3.0.0 pre-releases, since semver sorts them below it.
+  The `openupm` job runs on every `v*` tag; what OpenUPM does with a later pre-release is untested.
 - The CHANGELOG is append-only, as Unity's own packages keep theirs: one section per pre-release,
   each a delta on the one before, and a published section is never edited. When a later build
   changes or fixes something a pre-release introduced, that goes in as a new entry in the later
@@ -227,11 +228,9 @@ signed Release asset anyway: 2.5.0 was signed, but `upm pack` stamped it with a 
 that is not in this repository, so it was not backfilled.) To change any of these, open a PR
 against that file.
 
-**Still to do: tag 3.0.0 before 2026-12-27.** OpenUPM removes a package with no published version
-within three months of registration, and nothing below `minVersion` is built. Set
-`gh variable set OPENUPM_ENABLED --body true` just before tagging it: the `openupm` job asks OpenUPM
-to publish the pushed tag, and for a tag below `minVersion`, such as a 3.0.0 pre-release, there is
-nothing to publish — what the action reports then is untested.
+3.0.0, released 2026-09-27, is the first version on OpenUPM. `OPENUPM_ENABLED` has been `true` since
+then and stays on: on each tag the `openupm` job asks OpenUPM to publish it and waits for the
+result, so check that job like the others.
 
 ## Non-obvious repo facts
 
@@ -273,7 +272,7 @@ nothing to publish — what the action reports then is untested.
 - **Three workflows.** `analyzer.yml` runs on pushes to `main`, `v*` tags, pull requests and manual
   dispatch. `release.yml` runs on `v*` tags. `ci.yml` (the Unity job) runs on pushes to `main`,
   tags and manual dispatch. OpenUPM is gated by the `OPENUPM_ENABLED` repository variable rather
-  than a disabled workflow; it stays off until 3.0.0, the first version OpenUPM will build.
+  than a disabled workflow; it has been on since 3.0.0, the first version OpenUPM built.
   `.github/dependabot.yml` opens a weekly grouped PR moving the SHA-pinned actions forward.
 - **`ci.yml` holds the Unity job despite the name.** It was kept at that path while disabled,
   because GitHub keys a workflow and its disabled state to the file path. Its job skips pull
