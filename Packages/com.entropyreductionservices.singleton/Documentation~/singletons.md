@@ -42,30 +42,35 @@ persistent.
 ## Quick start
 
 ```csharp
+using System;
+using System.Collections;
 using EntropyReductionServices.Singletons;
 using UnityEngine;
 
-public class AudioBus : MonoBehaviourSingleton<AudioBus>
+public class Timers : MonoBehaviourSingleton<Timers>
 {
-    private AudioSource _source;
+    public Coroutine After(float seconds, Action callback) => StartCoroutine(Run(seconds, callback));
 
-    protected override void Awake()
+    public void Cancel(Coroutine timer)
     {
-        base.Awake();                       // claims the slot, destroys duplicates
-        _source = GetComponent<AudioSource>();
+        if (timer != null) StopCoroutine(timer);
     }
 
-    public void Play(AudioClip clip) => _source.PlayOneShot(clip);
+    private static IEnumerator Run(float seconds, Action callback)
+    {
+        yield return new WaitForSecondsRealtime(seconds);
+        callback();
+    }
 }
 ```
 
 ```csharp
-AudioBus.Instance.Play(clip);               // anywhere, any time the app is running
+var respawn = Timers.Instance.After(2f, Respawn);   // anywhere, any time the app is running
 ```
 
-Note the CRTP shape: `AudioBus : MonoBehaviourSingleton<AudioBus>` names itself as the
-type parameter. `AudioBus : MonoBehaviourSingleton<SomethingElse>` does not compile, which
-is deliberate — the older form of this code accepted it and threw at runtime instead.
+Note the CRTP shape: `Timers : MonoBehaviourSingleton<Timers>` names itself as the type
+parameter. The constraint alone still admits `Timers : MonoBehaviourSingleton<SomethingElse>`
+whenever `SomethingElse` is itself a singleton, so ERS0011 reports it.
 
 ## Choosing a lifetime and a creation policy
 

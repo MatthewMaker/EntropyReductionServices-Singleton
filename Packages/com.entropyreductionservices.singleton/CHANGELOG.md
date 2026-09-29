@@ -14,6 +14,11 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- **The quick-start example works under the default policies.** `AudioBus` read an `AudioSource`
+  from its own GameObject in `Awake`, which a singleton created on first use does not have, and
+  which rebuilding it on a GameObject of its own left behind. The README and `singletons.md` now
+  use `Timers`, which needs nothing beside it; PlayMode tests run it created on first use and
+  authored on a shared GameObject.
 - **A private `[SerializeReference]` field counts as serialized state.** It was missed, so a
   persistent singleton whose only serialized field was one could be rebuilt on its own
   `GameObject`, discarding the authored value.
