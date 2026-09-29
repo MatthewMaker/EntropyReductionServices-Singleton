@@ -8,6 +8,9 @@ All notable changes to this package are documented here. The format follows
 
 ### Fixed
 
+- **A private `[SerializeReference]` field counts as serialized state.** It was missed, so a
+  persistent singleton whose only serialized field was one could be rebuilt on its own
+  `GameObject`, discarding the authored value.
 - **ERS0010's help link lands on its rule again.** The 2.x analyzer links to `analyzers.md#ers0010`
   on `main`, whose section 3.0.0 dropped, so the link opened the top of the page. The section is
   back, saying the rule was removed and what replaced it.

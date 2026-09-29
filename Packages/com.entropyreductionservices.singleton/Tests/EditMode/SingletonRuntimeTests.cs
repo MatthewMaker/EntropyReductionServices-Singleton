@@ -25,5 +25,24 @@ namespace EntropyReductionServices.Singletons.Tests
             _ = SingletonRuntime.SessionId;
             Assert.AreEqual(first, SingletonRuntime.SessionId);
         }
+
+        [Test]
+        public void DeclaresSerializedFields_IsFalseWithoutSerializedState()
+        {
+            Assert.IsFalse(SingletonRuntime.DeclaresSerializedFields(typeof(ValidatorStatelessSingleton)));
+        }
+
+        [Test]
+        public void DeclaresSerializedFields_CountsSerializeField()
+        {
+            Assert.IsTrue(SingletonRuntime.DeclaresSerializedFields(typeof(ValidatorStatefulSingleton)));
+        }
+
+        [Test]
+        public void DeclaresSerializedFields_CountsSerializeReference()
+        {
+            // Rebuilding on the strength of a false answer here would discard the authored payload.
+            Assert.IsTrue(SingletonRuntime.DeclaresSerializedFields(typeof(ValidatorReferenceSingleton)));
+        }
     }
 }
