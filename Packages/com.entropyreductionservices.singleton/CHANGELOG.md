@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.1.0]
+
 ### Added
 
 - **ERS0011 reports a singleton whose type argument is not the type itself.** The constraint

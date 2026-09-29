@@ -10,6 +10,6 @@
     cannot drift from the version the package advertises.
   -->
   <PropertyGroup>
-    <Version>3.0.0</Version>
+    <Version>3.1.0</Version>
   </PropertyGroup>
 </Project>
