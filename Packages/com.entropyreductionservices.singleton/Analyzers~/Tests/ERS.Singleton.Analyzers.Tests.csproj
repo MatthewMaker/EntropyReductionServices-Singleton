@@ -76,6 +76,17 @@
       <_Parameter1>EditorConfigPath</_Parameter1>
       <_Parameter2>$(MSBuildThisFileDirectory)../../../../.editorconfig</_Parameter2>
     </AssemblyAttribute>
+
+    <!-- Handed to HelpLinkTests, which checks every help link lands on an anchor in the rule
+         docs, including links from rules that have since been removed. -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AnalyzerDocsPath</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../../Documentation~/analyzers.md</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ShippedReleasesPath</_Parameter1>
+      <_Parameter2>$(MSBuildThisFileDirectory)../AnalyzerReleases.Shipped.md</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

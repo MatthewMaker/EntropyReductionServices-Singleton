@@ -248,6 +248,16 @@ Plain and compound assignments (`|=`, `&=`, `^=`) are reported, on the component
 `gameObject`, when spelled directly. A `GameObject` reached through a local variable or a field is
 not followed. Reading `hideFlags` is fine.
 
+<a id="ers0010"></a>
+
+## ers0010 — removed
+
+Removed in 3.0.0 along with `MonoBehaviourSingletonPassive<T>` and
+`MonoBehaviourSingletonPassivePersistent<T>`, the only flavours it applied to. It reported a passive
+`Instance` read from another object's `Awake` or `OnEnable`, which raced the singleton's own
+`Awake`. `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`, their replacement, resolves by
+scene search and has no such race. See the 3.0.0-pre.1 entries in the [changelog](../CHANGELOG.md).
+
 ## Retuning severities
 
 Place a `Default.ruleset` in your project's `Assets` root:

@@ -6,6 +6,12 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **ERS0010's help link lands on its rule again.** The 2.x analyzer links to `analyzers.md#ers0010`
+  on `main`, whose section 3.0.0 dropped, so the link opened the top of the page. The section is
+  back, saying the rule was removed and what replaced it.
+
 ## [3.0.0]
 
 ### Changed
