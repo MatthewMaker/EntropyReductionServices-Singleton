@@ -32,8 +32,9 @@ this contract a compiler can check.
 - A singleton with the default Application lifetime is made persistent even when another object
   resolved it before its own `Awake` ran. One with a Scene lifetime is never made persistent, and
   is destroyed with its scene.
-- Nothing is created during teardown: neither after `Application.quitting` has fired, nor into an
-  active scene that is being unloaded.
+- Nothing is created after `Application.quitting` has fired, nor into an active scene whose unload
+  has destroyed a singleton. An unload that destroys none opens no window — see
+  [Known gaps](#known-gaps-and-accepted-risks).
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
 
 **Correctness**
@@ -43,7 +44,8 @@ this contract a compiler can check.
 - Duplicate resolution is deterministic — scene build index, then hierarchy path — so the same
   scene yields the same winner every run, and every loser is logged with its full path.
 - `MaybeFindInScene` never adopts an instance whose scene is being unloaded.
-- `class Foo : MonoBehaviourSingleton<Bar>` does not compile (CRTP constraint).
+- `class Foo : MonoBehaviourSingleton<Bar>` is reported by ERS0011. The CRTP constraint alone
+  admits it whenever `Bar` is itself a singleton.
 - `FramePromoted` is never serialized.
 - Debug logging and debug name mutation compile out unless `SINGLETON_DEBUG` or
   `SINGLETON_DEBUG_GET` are defined.
@@ -79,7 +81,7 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
 
 ## Constraints on the subclass
 
-- Must be CRTP: `class Foo : MonoBehaviourSingleton<Foo>`.
+- Must be CRTP: `class Foo : MonoBehaviourSingleton<Foo>`. ERS0011.
 - An `Awake` override must call `base.Awake()` **first**; an `OnDestroy` override must call
   `base.OnDestroy()` **last**. The base Awake claims the slot and destroys duplicates, so work
   ahead of it runs on instances that are about to disappear; the base OnDestroy releases the slot,

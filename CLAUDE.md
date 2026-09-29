@@ -8,7 +8,7 @@ A Unity project whose only real content is the embedded package at
 `Packages/com.entropyreductionservices.singleton/`. The surrounding project exists so the package
 can be opened, compiled and tested by a real editor — it is a test harness, not an application.
 
-The package ships two things: the singleton base class in `Runtime/`, and nine Roslyn analyzers
+The package ships two things: the singleton base class in `Runtime/`, and ten Roslyn analyzers
 that enforce their contract in *consuming* assemblies.
 
 ## Branching and releases
@@ -159,7 +159,7 @@ UNITY="$(unity editors --installed --json --verbose --no-banner \
 #    Count unique ids, not lines — each warning is printed twice.
 cp "$PKG/Analyzers~/bin/Release/ERS.Singleton.Analyzers.dll" "$PKG/Runtime/Analyzers/"
 ( cd "$PKG/Analyzers~/StalenessProbe" && dotnet build -c Release --no-incremental 2>&1 \
-    | grep -oE "(warning|error) ERS000[0-9]" | sort -u )   # expect every id --list-ids prints
+    | grep -oE "(warning|error) ERS[0-9]{4}" | sort -u )   # expect every id --list-ids prints
 
 # CI drives the same loop from .editorconfig rather than a hardcoded list:
 #   python3 scripts/sync-analyzer-severities.py --list-ids

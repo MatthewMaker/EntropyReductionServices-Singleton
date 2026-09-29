@@ -107,6 +107,13 @@ namespace EntropyReductionServices.Singletons.Tests
         public int Configured => _configured;
     }
 
+    // A private [SerializeReference] field is serialized state too, with no [SerializeField] on it.
+    internal class ValidatorReferenceSingleton : MonoBehaviourSingleton<ValidatorReferenceSingleton>
+    {
+        [SerializeReference] private object _payload;
+        public object Payload => _payload;
+    }
+
     [ExecuteAlways] internal class AutoTransient : MonoBehaviourSingleton<AutoTransient> { }
 
     [ExecuteAlways]

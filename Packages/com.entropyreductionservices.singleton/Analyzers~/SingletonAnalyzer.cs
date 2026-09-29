@@ -51,7 +51,8 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.RedundantNullConditional,
                 SingletonDiagnostics.BaseCallOutOfOrder,
                 SingletonDiagnostics.SerializationCallbackAccess,
-                SingletonDiagnostics.HideFlagsAssignment);
+                SingletonDiagnostics.HideFlagsAssignment,
+                SingletonDiagnostics.MismatchedTypeArgument);
 
         /// <summary>
         /// The Unity and singleton types the rules test against, resolved once per compilation.
@@ -99,6 +100,10 @@ namespace EntropyReductionServices.Analyzers
                 };
 
                 start.RegisterSyntaxNodeAction(
+                    ctx => AnalyzeTypeArgument(ctx, singletonBase),
+                    SyntaxKind.ClassDeclaration);
+
+                start.RegisterSyntaxNodeAction(
                     ctx => AnalyzeMethodDeclaration(ctx, singletonBase),
                     SyntaxKind.MethodDeclaration);
 
@@ -114,6 +119,69 @@ namespace EntropyReductionServices.Analyzers
                     SyntaxKind.AndAssignmentExpression,
                     SyntaxKind.ExclusiveOrAssignmentExpression);
             });
+        }
+
+        // -----------------------------------------------------------------------------------
+        // ERS0011 — the singleton's type argument
+        // -----------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Finds the MonoBehaviourSingleton&lt;X&gt; in a class's base chain, as seen from that
+        /// class, and reports when the class is neither X nor derived from X.
+        ///
+        /// Walking the chain rather than reading the direct base catches a mismatch made through an
+        /// intermediate generic base ('class Audio : ManagerBase&lt;Video&gt;'), and accepting any
+        /// class derived from X keeps a subclass of a concrete singleton legal. An X that is still a
+        /// type parameter belongs to an intermediate generic base, which is checked where it is
+        /// closed instead.
+        ///
+        /// Runs on the declaration that names the base class, so a partial class is reported once,
+        /// on that base, and a part listing only interfaces is skipped.
+        /// </summary>
+        private static void AnalyzeTypeArgument(SyntaxNodeAnalysisContext context, INamedTypeSymbol singletonBase)
+        {
+            var declaration = (ClassDeclarationSyntax)context.Node;
+            if (declaration.BaseList == null) return;
+
+            // Only the first entry can be the base class.
+            var written = declaration.BaseList.Types[0];
+            if (context.SemanticModel.GetTypeInfo(written.Type, context.CancellationToken).Type?.TypeKind
+                != TypeKind.Class)
+                return;
+
+            if (!(context.SemanticModel.GetDeclaredSymbol(declaration, context.CancellationToken)
+                    is INamedTypeSymbol type))
+                return;
+
+            var singleton = type.BaseType;
+            while (singleton != null &&
+                   !SymbolEqualityComparer.Default.Equals(singleton.OriginalDefinition, singletonBase))
+                singleton = singleton.BaseType;
+            if (singleton == null) return;
+
+            if (!(singleton.TypeArguments[0] is INamedTypeSymbol argument)) return;   // a type parameter
+            if (DerivesFromExactly(type, argument)) return;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.MismatchedTypeArgument,
+                written.GetLocation(),
+                type.Name,
+                argument.Name));
+        }
+
+        /// <summary>
+        /// True when the type is the given constructed type or has it in its base chain. Unlike
+        /// DerivesFrom, which compares open definitions, this keeps type arguments, so Foo&lt;int&gt;
+        /// does not count as a Foo&lt;string&gt;.
+        /// </summary>
+        private static bool DerivesFromExactly(INamedTypeSymbol type, INamedTypeSymbol baseType)
+        {
+            for (var current = type; current != null; current = current.BaseType)
+            {
+                if (SymbolEqualityComparer.Default.Equals(current, baseType)) return true;
+            }
+
+            return false;
         }
 
         // -----------------------------------------------------------------------------------

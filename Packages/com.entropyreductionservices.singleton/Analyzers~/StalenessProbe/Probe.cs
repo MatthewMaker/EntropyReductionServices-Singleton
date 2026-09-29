@@ -50,4 +50,6 @@ namespace Probe
     {
         public void Hide() { hideFlags = UnityEngine.HideFlags.DontSave; }   // ERS0009
     }
+
+    public class Ers0011 : MonoBehaviourSingleton<Bus> { }       // ERS0011 (type argument is not itself)
 }

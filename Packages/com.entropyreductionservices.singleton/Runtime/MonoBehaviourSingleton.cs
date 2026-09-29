@@ -200,8 +200,8 @@ namespace EntropyReductionServices.Singletons
         /// so the editor-side validator can ask exactly the same question the runtime asks, rather
         /// than keeping a second copy of the rule that drifts.
         ///
-        /// Deliberately conservative — any public or [SerializeField] instance field counts,
-        /// without asking whether its type is actually serializable. Answering "has state" when it
+        /// Deliberately conservative — any public, [SerializeField] or [SerializeReference] instance
+        /// field counts, without asking whether its type is actually serializable. Answering "has state" when it
         /// does not merely declines a rebuild; the opposite would discard authored data.
         /// </summary>
         public static bool DeclaresSerializedFields(Type type)
@@ -220,7 +220,9 @@ namespace EntropyReductionServices.Singletons
                     if (field.IsNotSerialized) continue;               // [NonSerialized]
                     if (field.IsInitOnly || field.IsLiteral) continue; // readonly and const are not serialized
 
-                    if (field.IsPublic || field.IsDefined(typeof(SerializeField), true)) return true;
+                    if (field.IsPublic ||
+                        field.IsDefined(typeof(SerializeField), true) ||
+                        field.IsDefined(typeof(SerializeReference), true)) return true;
                 }
             }
 

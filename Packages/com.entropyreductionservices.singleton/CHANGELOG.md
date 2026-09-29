@@ -6,8 +6,20 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **ERS0011 reports a singleton whose type argument is not the type itself.** The constraint
+  admits `class Foo : MonoBehaviourSingleton<Bar>` whenever `Bar` is a singleton, and such a `Foo`
+  cannot claim its own slot. The contract said this did not compile.
+
 ### Fixed
 
+- **A private `[SerializeReference]` field counts as serialized state.** It was missed, so a
+  persistent singleton whose only serialized field was one could be rebuilt on its own
+  `GameObject`, discarding the authored value.
+- **The contract's teardown guarantee names its exception.** It promised that nothing is created
+  while the active scene unloads; that holds only once the unload has destroyed a singleton, as
+  *Known gaps* already said.
 - **ERS0010's help link lands on its rule again.** The 2.x analyzer links to `analyzers.md#ers0010`
   on `main`, whose section 3.0.0 dropped, so the link opened the top of the page. The section is
   back, saying the rule was removed and what replaced it.

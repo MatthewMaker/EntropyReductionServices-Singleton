@@ -187,6 +187,24 @@ namespace EntropyReductionServices.Analyzers
                          "directly; a GameObject reached through a local variable is not tracked.");
 
         /// <summary>
+        /// ERS0011 — a singleton whose type argument is not itself or one of its base classes, as
+        /// in 'class Foo : MonoBehaviourSingleton&lt;Bar&gt;'. The generic constraint admits that
+        /// whenever Bar is a valid singleton of its own, so only an analyzer can reject it.
+        /// </summary>
+        public static readonly DiagnosticDescriptor MismatchedTypeArgument = Rule(
+            id: "ERS0011",
+            title: "A singleton's type argument must be the type itself",
+            messageFormat: "'{0}' derives from MonoBehaviourSingleton<{1}> but is not a '{1}'; " +
+                           "the type argument must be '{0}'",
+            description: "MonoBehaviourSingleton<T> stores and returns the instance as a T. The " +
+                         "constraint 'where T : MonoBehaviourSingleton<T>' only requires T to be " +
+                         "some singleton, so 'class Foo : MonoBehaviourSingleton<Bar>' compiles " +
+                         "whenever Bar is one. At runtime Foo's Awake either fails to cast itself " +
+                         "to Bar or destroys itself as a duplicate of Bar, and Foo.Instance returns " +
+                         "a Bar. Reported wherever the type argument reaches the singleton base, " +
+                         "including through an intermediate generic base class.");
+
+        /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which
         /// hides the base method. Unity invokes the most-derived declaration, so the base logic
         /// silently never runs — the same end state as ERS0001, reached by a different mistake.

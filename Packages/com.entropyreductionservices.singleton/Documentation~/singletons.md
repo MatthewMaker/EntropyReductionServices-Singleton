@@ -306,8 +306,8 @@ break in a build with these on. Don't match singletons by name.
 
 ## Enforcement
 
-Nine Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
+Ten Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
 covering the rules above that are checkable: the required `base.Awake()` and its position, field
 caching, unguarded teardown access, `?.` on `Instance`, construction-time and
-serialization-callback access, `Awake` declared without `override`, and `hideFlags` set on a
-singleton. See [analyzers.md](analyzers.md).
+serialization-callback access, `Awake` declared without `override`, `hideFlags` set on a
+singleton, and a type argument that is not the type itself. See [analyzers.md](analyzers.md).

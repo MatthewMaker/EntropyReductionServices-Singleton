@@ -1,6 +1,6 @@
 # Singleton analyzers
 
-Nine rules enforcing [the contract](contract.md). They ship
+Ten rules enforcing [the contract](contract.md). They ship
 as `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` and apply to this package's assembly **and to
 every assembly that references it** — that scoping is Unity's documented behaviour for an analyzer
 sitting in or under a folder containing an `.asmdef`, and it is why the DLL lives beside the
@@ -18,6 +18,7 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0007 | Warning | Singleton base call is in the wrong position |
 | ERS0008 | Warning | Do not read a singleton's `Instance` from a serialization callback |
 | ERS0009 | Warning | Do not set `hideFlags` on a singleton |
+| ERS0011 | Warning | A singleton's type argument must be the type itself |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -258,6 +259,26 @@ Removed in 3.0.0 along with `MonoBehaviourSingletonPassive<T>` and
 `Awake`. `[SingletonCreation(SingletonCreationPolicy.FindOnly)]`, their replacement, resolves by
 scene search and has no such race. See the 3.0.0-pre.1 entries in the [changelog](../CHANGELOG.md).
 
+<a id="ers0011"></a>
+
+## ers0011 — the type argument must be the type itself
+
+The constraint `where T : MonoBehaviourSingleton<T>` only requires `T` to be *some* singleton, so
+`class Foo : MonoBehaviourSingleton<Bar>` compiles whenever `Bar` is one. At runtime `Foo`'s
+`Awake` either fails to cast itself to `Bar` or destroys itself as a duplicate of `Bar`, and
+`Foo.Instance` returns a `Bar`.
+
+```csharp
+public class Radio : MonoBehaviourSingleton<AudioBus> { }        // ERS0011
+public class Video : Manager<Audio> { }                          // ERS0011, through a generic base
+public class LoudBus : AudioBus { }                              // fine: a subclass of a singleton
+```
+
+The type argument is checked where it reaches `MonoBehaviourSingleton<T>`, so a mismatch made
+through an intermediate generic base such as `Manager<T> : MonoBehaviourSingleton<T>` is reported
+on the class that closes it. A class that derives from the argument — a subclass of a concrete
+singleton — is not reported.
+
 ## Retuning severities
 
 Place a `Default.ruleset` in your project's `Assets` root:
@@ -295,6 +316,7 @@ to keep all of them.
     <Rule Id="ERS0007" Action="None" />
     <Rule Id="ERS0008" Action="None" />
     <Rule Id="ERS0009" Action="None" />
+    <Rule Id="ERS0011" Action="None" />
   </Rules>
 </RuleSet>
 ```
