@@ -32,8 +32,9 @@ this contract a compiler can check.
 - A singleton with the default Application lifetime is made persistent even when another object
   resolved it before its own `Awake` ran. One with a Scene lifetime is never made persistent, and
   is destroyed with its scene.
-- Nothing is created during teardown: neither after `Application.quitting` has fired, nor into an
-  active scene that is being unloaded.
+- Nothing is created after `Application.quitting` has fired, nor into an active scene whose unload
+  has destroyed a singleton. An unload that destroys none opens no window — see
+  [Known gaps](#known-gaps-and-accepted-risks).
 - Nothing created in edit mode can be written to a scene or prefab (`HideFlags.DontSave`).
 
 **Correctness**
