@@ -17,34 +17,44 @@ what it guarantees, and ships analyzers that check callers hold up their end.
 MIT licensed. Unity 6.3 LTS and newer.
 
 ```csharp
+using System;
+using System.Collections;
 using EntropyReductionServices.Singletons;
 using UnityEngine;
 
-public class AudioBus : MonoBehaviourSingleton<AudioBus>
+public class Timers : MonoBehaviourSingleton<Timers>
 {
-    private AudioSource _source;
+    public Coroutine After(float seconds, Action callback) => StartCoroutine(Run(seconds, callback));
 
-    protected override void Awake()
+    public void Cancel(Coroutine timer)
     {
-        base.Awake();                       // claims the slot, destroys duplicates
-        _source = GetComponent<AudioSource>();
+        if (timer != null) StopCoroutine(timer);
     }
 
-    public void Play(AudioClip clip) => _source.PlayOneShot(clip);
-    public void Stop() => _source.Stop();
+    private static IEnumerator Run(float seconds, Action callback)
+    {
+        yield return new WaitForSecondsRealtime(seconds);
+        callback();
+    }
 }
 ```
 
 ```csharp
-AudioBus.Instance.Play(clip);               // a live singleton exists while the app is running
+private Coroutine _respawn;
+
+private void Start() => _respawn = Timers.Instance.After(2f, Respawn);   // created on first use
 
 private void OnDestroy()
 {
-    // During teardown Instance returns the destroyed component rather than null, so managed
-    // calls are safe. Guard anything that touches the GameObject.
-    if (AudioBus.TryGetInstance(out var bus)) bus.Stop();
+    // During teardown Instance hands back the destroyed component rather than null. StopCoroutine
+    // reaches its native object, so guard the call; your own managed members need no guard.
+    if (Timers.TryGetInstance(out var timers)) timers.Cancel(_respawn);
 }
 ```
+
+To extend `Awake` or `OnDestroy`, override them and call `base.Awake()` first and
+`base.OnDestroy()` last: the base methods claim and release the slot. ERS0001, ERS0005 and
+ERS0007 check this.
 
 ## The contract
 
