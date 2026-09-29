@@ -636,5 +636,50 @@ namespace Client
         }
     }
 }");
+
+        // -- ERS0011: a singleton whose type argument is not itself ---------------------------
+
+        [Test]
+        public Task ERS0011_AnotherSingletonAsTheArgument_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using EntropyReductionServices.Singletons;
+    public class Radio : {|ERS0011:MonoBehaviourSingleton<Bus>|} { }
+}");
+
+        [Test]
+        public Task ERS0011_ThroughAnIntermediateGenericBase_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using EntropyReductionServices.Singletons;
+    public abstract class Manager<T> : MonoBehaviourSingleton<T> where T : Manager<T> { }
+    public class Audio : Manager<Audio> { }
+    public class Video : {|ERS0011:Manager<Audio>|} { }
+}");
+
+        [Test]
+        public Task ERS0011_OnAPartialClass_IsReportedOnceOnTheBaseClass() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using EntropyReductionServices.Singletons;
+    public partial class Radio : {|ERS0011:MonoBehaviourSingleton<Bus>|} { }
+    public partial class Radio : System.IDisposable { public void Dispose() { } }
+}");
+
+        [Test]
+        public Task ERS0011_WellFormedSingletons_AreClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    using EntropyReductionServices.Singletons;
+    public class Radio : MonoBehaviourSingleton<Radio> { }
+    public class LoudBus : Bus { }                              // subclass of a concrete singleton
+    public abstract class Manager<T> : MonoBehaviourSingleton<T> where T : Manager<T> { }
+    public class Audio : Manager<Audio> { }
+    public class Pool<TItem> : MonoBehaviourSingleton<Pool<TItem>> { }
+    public class IntPool : Pool<int> { }
+}");
     }
 }

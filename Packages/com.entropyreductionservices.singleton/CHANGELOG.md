@@ -6,6 +6,12 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **ERS0011 reports a singleton whose type argument is not the type itself.** The constraint
+  admits `class Foo : MonoBehaviourSingleton<Bar>` whenever `Bar` is a singleton, and such a `Foo`
+  cannot claim its own slot. The contract said this did not compile.
+
 ### Fixed
 
 - **A private `[SerializeReference]` field counts as serialized state.** It was missed, so a

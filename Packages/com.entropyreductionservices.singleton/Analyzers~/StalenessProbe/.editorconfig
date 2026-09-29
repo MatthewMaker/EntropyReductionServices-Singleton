@@ -16,3 +16,4 @@ dotnet_diagnostic.ERS0006.severity = warning
 dotnet_diagnostic.ERS0007.severity = warning
 dotnet_diagnostic.ERS0008.severity = warning
 dotnet_diagnostic.ERS0009.severity = warning
+dotnet_diagnostic.ERS0011.severity = warning
