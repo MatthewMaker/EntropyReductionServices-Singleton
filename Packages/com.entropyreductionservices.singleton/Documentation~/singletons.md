@@ -208,6 +208,26 @@ your singletons during loading, not mid-session on device.
 If the lazy path creates the instance, that instance's own `Awake` runs re-entrantly inside your
 `Instance` call. Code in `Awake` that reads `Instance` again will see it already assigned.
 
+**Starting at launch.** A singleton that something reads needs no bootstrap: the first read
+creates it, and singletons that read each other in `Awake` come up in dependency order on their
+own. One that nothing reads — a keep-awake controller, an always-on overlay — is never created that
+way. Have it start itself:
+
+```csharp
+public class KeepAwake : MonoBehaviourSingleton<KeepAwake>
+{
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void StartAtLaunch() => _ = Instance;
+}
+```
+
+Unity does not run `[RuntimeInitializeOnLoadMethod]` on generic types, so the base class cannot do
+this for you, but the concrete subclass is not generic. `AfterSceneLoad` runs once the first scene's
+`Awake`s have, so an instance authored into that scene is found rather than duplicated. It runs
+only on entering play mode and in a player, never in edit mode. Prefer this over a central
+`EnsureManagersExist()`: the list goes stale, and it creates every manager whether or not anything
+uses it.
+
 **Duplicates** are resolved deterministically: sorted by scene build index, then by hierarchy path,
 so the same scene produces the same winner on every run. The losers are logged with their full
 paths, because "there is more than one of these" is useless without knowing where.

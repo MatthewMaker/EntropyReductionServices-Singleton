@@ -13,6 +13,9 @@ All notable changes to this package are documented here. The format follows
   resolves or creates the singleton the check appears to be asking about. Reported for `==` and
   `!=` against `null` and for `is null` / `is not null`. Use `IsAvailable`, `Exists` or
   `TryGetInstance` instead. Ships as a warning.
+- **Docs: starting a singleton at launch.** `singletons.md` shows how a singleton that nothing
+  reads creates itself from `[RuntimeInitializeOnLoadMethod]` on its own subclass, instead of a
+  central bootstrap that lists every manager.
 
 ### Fixed
 
