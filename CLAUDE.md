@@ -39,7 +39,7 @@ Use it only when the runtime code matches a commit whose suites you have already
 message records that they were skipped.
 
 It is a local script rather than a workflow because its Unity suites run on the project's own
-editor (6000.5), while CI runs them only on the 6000.3 floor. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
+editor (6000.6), while CI runs them only on the 6000.3 floor. It refuses to start unless the tree is clean, `main` matches `origin/main`, a
 matching Unity editor is installed (unless `--skip-unity`; it asks `unity editors --installed`,
 or takes an explicit `UNITY=/path/to/editor`), and `CHANGELOG.md` has an `## [Unreleased]` heading to
 promote. Rules still sitting in `AnalyzerReleases.Unshipped.md` are not a blocker — the script

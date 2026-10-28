@@ -173,7 +173,7 @@ work, since nothing here uses an API newer than 2021.3, but they are not tested 
 claimed.
 
 CI runs the EditMode and PlayMode suites on the floor, 6000.3.24f1, on every push to `main` and
-every tag. Each release is also gated by a local run on the project's own editor (6000.5).
+every tag. Each release is also gated by a local run on the project's own editor (6000.6).
 
 The analyzer targets `netstandard2.0` against Microsoft.CodeAnalysis.CSharp 3.8. Unity 6
 documentation specifies Roslyn 4.3, but an analyzer built against older Roslyn loads on newer
