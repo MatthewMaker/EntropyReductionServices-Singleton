@@ -52,4 +52,9 @@ namespace Probe
     }
 
     public class Ers0011 : MonoBehaviourSingleton<Bus> { }       // ERS0011 (type argument is not itself)
+
+    public class Ers0012 : UnityEngine.MonoBehaviour
+    {
+        private bool Exists() => Bus.Instance != null;           // ERS0012 (Instance compared to null)
+    }
 }

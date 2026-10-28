@@ -52,7 +52,8 @@ namespace EntropyReductionServices.Analyzers
                 SingletonDiagnostics.BaseCallOutOfOrder,
                 SingletonDiagnostics.SerializationCallbackAccess,
                 SingletonDiagnostics.HideFlagsAssignment,
-                SingletonDiagnostics.MismatchedTypeArgument);
+                SingletonDiagnostics.MismatchedTypeArgument,
+                SingletonDiagnostics.NullComparison);
 
         /// <summary>
         /// The Unity and singleton types the rules test against, resolved once per compilation.
@@ -330,7 +331,7 @@ namespace EntropyReductionServices.Analyzers
         }
 
         // -----------------------------------------------------------------------------------
-        // ERS0002 / ERS0003 / ERS0004 / ERS0006 / ERS0008 — reads of a singleton Instance
+        // ERS0002 / ERS0003 / ERS0004 / ERS0006 / ERS0008 / ERS0012 — reads of a singleton Instance
         // -----------------------------------------------------------------------------------
 
         /// <summary>
@@ -360,7 +361,65 @@ namespace EntropyReductionServices.Analyzers
             if (TryReportSerializationCallback(context, access, known, singletonName)) return;
             if (TryReportFieldCache(context, access, receiver, known, singletonName)) return;
             if (TryReportTeardown(context, access, enclosing, singletonName)) return;
-            TryReportRedundantNullConditional(context, access, singletonName);
+            if (TryReportRedundantNullConditional(context, access, singletonName)) return;
+            TryReportNullComparison(context, access, singletonName);
+        }
+
+        /// <summary>
+        /// ERS0012: Instance compared to null, as 'Instance == null', 'null != Instance',
+        /// 'Instance is null' or 'Instance is not null', parentheses allowed on either operand.
+        ///
+        /// Reported in teardown callbacks too. There '== null' does give the right answer, but
+        /// IsAvailable gives the same one, and the same OnDestroy also runs mid-session, where the
+        /// read creates a replacement for a singleton that was never needed. ERS0003 is not in the
+        /// way: a comparison is not a dereference, so it has already declined.
+        /// </summary>
+        private static bool TryReportNullComparison(
+            SyntaxNodeAnalysisContext context,
+            MemberAccessExpressionSyntax access,
+            string singletonName)
+        {
+            ExpressionSyntax operand = access;
+            while (operand.Parent is ParenthesizedExpressionSyntax parenthesized) operand = parenthesized;
+
+            bool testsForNull;
+            switch (operand.Parent)
+            {
+                case BinaryExpressionSyntax binary
+                    when (binary.IsKind(SyntaxKind.EqualsExpression) || binary.IsKind(SyntaxKind.NotEqualsExpression)) &&
+                         IsNullLiteral(binary.Left == operand ? binary.Right : binary.Left):
+                    testsForNull = binary.IsKind(SyntaxKind.EqualsExpression);
+                    break;
+                case IsPatternExpressionSyntax isPattern when isPattern.Expression == operand:
+                    if (isPattern.Pattern is ConstantPatternSyntax constant && IsNullLiteral(constant.Expression))
+                        testsForNull = true;
+                    else if (isPattern.Pattern is UnaryPatternSyntax not &&
+                             not.Pattern is ConstantPatternSyntax negated && IsNullLiteral(negated.Expression))
+                        testsForNull = false;
+                    else
+                        return false;
+                    break;
+                default:
+                    return false;
+            }
+
+            // Suggest the receiver as written, so a qualified 'Audio.Bus.Instance' becomes
+            // 'Audio.Bus.IsAvailable' rather than a name that may not resolve at the call site.
+            var available = access.Expression + "." + AvailablePropertyName;
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                SingletonDiagnostics.NullComparison,
+                operand.Parent.GetLocation(),
+                singletonName,
+                testsForNull ? "!" + available : available));
+            return true;
+        }
+
+        /// <summary>True for 'null', parenthesized or not.</summary>
+        private static bool IsNullLiteral(ExpressionSyntax expression)
+        {
+            while (expression is ParenthesizedExpressionSyntax parenthesized) expression = parenthesized.Expression;
+            return expression.IsKind(SyntaxKind.NullLiteralExpression);
         }
 
         /// <summary>
@@ -371,17 +430,18 @@ namespace EntropyReductionServices.Analyzers
         /// like protection and provides none. Outside teardown the same expression is merely dead,
         /// which is what this reports.
         /// </summary>
-        private static void TryReportRedundantNullConditional(
+        private static bool TryReportRedundantNullConditional(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access,
             string singletonName)
         {
-            if (!IsNullConditionalReceiver(access, out _)) return;
+            if (!IsNullConditionalReceiver(access, out _)) return false;
 
             context.ReportDiagnostic(Diagnostic.Create(
                 SingletonDiagnostics.RedundantNullConditional,
                 access.GetLocation(),
                 singletonName));
+            return true;
         }
 
         /// <summary>

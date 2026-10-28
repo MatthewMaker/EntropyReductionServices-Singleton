@@ -24,5 +24,6 @@
     <Rule Id="ERS0008" Action="Error" />
     <Rule Id="ERS0009" Action="Warning" />
     <Rule Id="ERS0011" Action="Error" />
+    <Rule Id="ERS0012" Action="Warning" />
   </Rules>
 </RuleSet>

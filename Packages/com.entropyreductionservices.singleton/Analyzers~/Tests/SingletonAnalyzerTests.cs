@@ -681,5 +681,121 @@ namespace Client
     public class Pool<TItem> : MonoBehaviourSingleton<Pool<TItem>> { }
     public class IntPool : Pool<int> { }
 }");
+
+        // -- ERS0012: Instance compared to null --------------------------------------------------
+
+        /// <summary>
+        /// The spellings seen in consuming code: a guard that can never fire, and an existence
+        /// check that creates what it is checking for.
+        /// </summary>
+        [Test]
+        public Task ERS0012_EqualityAgainstNull_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnEnable()
+        {
+            if ({|ERS0012:Bus.Instance == null|}) return;
+            Bus.Instance.Stop();
+        }
+
+        private bool Exists() => {|ERS0012:Bus.Instance != null|};
+    }
+}");
+
+        [Test]
+        public Task ERS0012_ReversedAndParenthesized_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private bool A() => {|ERS0012:null == Bus.Instance|};
+        private bool B() => {|ERS0012:(Bus.Instance) != (null)|};
+    }
+}");
+
+        /// <summary>
+        /// 'is null' tests the reference, so it is wrong in teardown as well: the destroyed
+        /// component is a live C# object.
+        /// </summary>
+        [Test]
+        public Task ERS0012_IsNullPatterns_AreReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private bool A() => {|ERS0012:Bus.Instance is null|};
+        private bool B() => {|ERS0012:Bus.Instance is not null|};
+    }
+}");
+
+        /// <summary>
+        /// Teardown callbacks are not exempt: IsAvailable gives the same answer there, and the same
+        /// callback also runs mid-session, where the read creates a replacement.
+        /// </summary>
+        [Test]
+        public Task ERS0012_InTeardownCallbacks_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private void OnDisable() { if ({|ERS0012:Bus.Instance != null|}) Bus.Instance.Stop(); }
+        private void OnDestroy() { if ({|ERS0012:Bus.Instance == null|}) return; }
+    }
+}");
+
+        /// <summary>Reported through a subclass of a concrete singleton, as for every Instance rule.</summary>
+        [Test]
+        public Task ERS0012_ThroughSubclass_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class LoudBus : Bus { }
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private bool A() => {|ERS0012:LoudBus.Instance == null|};
+    }
+}");
+
+        /// <summary>
+        /// The replacements, a member of the instance compared to null, a comparison against
+        /// something other than null, and a local — which is the author's own value to test.
+        /// </summary>
+        [Test]
+        public Task ERS0012_NeighbouringShapes_AreClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private Bus _other;
+        private bool A() => Bus.IsAvailable;
+        private bool B() => Bus.TryGetInstance(out _);
+        private bool C() => Bus.Instance.name == null;
+        private bool D() => Bus.Instance == _other;
+        private bool E() { var bus = Bus.Instance; return bus == null; }
+        private bool F() => Bus.Instance is Bus;
+    }
+}");
+
+        /// <summary>
+        /// A more serious rule claims the read first, so a comparison in a field initializer is
+        /// reported once, as ERS0004.
+        /// </summary>
+        [Test]
+        public Task ERS0012_InFieldInitializer_DefersToErs0004() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private bool _missing = {|ERS0004:Bus.Instance|} == null;
+    }
+}");
     }
 }

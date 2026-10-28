@@ -145,7 +145,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             Assert.IsTrue(loser != null, "the GameObject must survive, because the bystander is on it");
             Assert.IsTrue(bystander != null, "the bystander must survive");
             Assert.AreSame(bystander, SharedObjectBystander.Instance);
-            Assert.IsTrue(SharedObjectDuplicate.Instance != null, "the winner still holds the slot");
+            Assert.IsTrue(SharedObjectDuplicate.Exists, "the winner still holds the slot");
 
             Object.DestroyImmediate(winner);
         }
@@ -163,7 +163,7 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             yield return null;
 
             Assert.IsTrue(loser == null, "nothing else was on the GameObject, so the shell goes too");
-            Assert.IsTrue(SharedObjectAlone.Instance != null);
+            Assert.IsTrue(SharedObjectAlone.Exists);
 
             Object.DestroyImmediate(winner);
         }

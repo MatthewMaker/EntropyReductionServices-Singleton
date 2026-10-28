@@ -205,6 +205,28 @@ namespace EntropyReductionServices.Analyzers
                          "including through an intermediate generic base class.");
 
         /// <summary>
+        /// ERS0012 — comparing a singleton's Instance to null. Outside teardown the accessor
+        /// resolves, creates, or throws, so the comparison is constant; and because it is a read,
+        /// it creates the singleton it appears to be asking about. IsAvailable gives the answer
+        /// the comparison was written to get, without the side effect.
+        /// </summary>
+        public static readonly DiagnosticDescriptor NullComparison = Rule(
+            id: "ERS0012",
+            title: "Do not compare a singleton's Instance to null",
+            messageFormat: "'{0}.Instance' is never null outside teardown, and reading it resolves " +
+                           "or creates the singleton; test '{1}' instead",
+            description: "A singleton's Instance returns a live singleton or throws while the " +
+                         "application is running, so 'Instance == null' is never true there and " +
+                         "'Instance != null' never false. The read is not free either: it searches " +
+                         "the scene and may create a GameObject, so a check written to ask whether " +
+                         "the singleton exists brings it into existence. IsAvailable answers whether " +
+                         "Instance would succeed, matching '!= null' in teardown as well, without " +
+                         "resolving anything; Exists and TryGetInstance answer whether one exists " +
+                         "right now. Reported for '==' and '!=' against a null literal and for " +
+                         "'is null' and 'is not null', which test the reference rather than Unity's " +
+                         "== overload and so are wrong in teardown too.");
+
+        /// <summary>
         /// ERS0005 — declaring Awake/OnDestroy without 'override' in a singleton subclass, which
         /// hides the base method. Unity invokes the most-derived declaration, so the base logic
         /// silently never runs — the same end state as ERS0001, reached by a different mistake.

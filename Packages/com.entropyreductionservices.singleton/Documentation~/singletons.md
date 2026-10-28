@@ -147,7 +147,8 @@ private void OnDisable()
 The limit is worth knowing. That reference is a destroyed `UnityEngine.Object`, so anything
 reaching the native peer — `transform`, `gameObject`, `enabled`, `StartCoroutine` — raises
 `MissingReferenceException`. Unity's `==` overload still reports it as null, so `!= null` checks
-keep the meaning they always had — but **`?.` does not**. `?.` tests the reference rather than
+keep the meaning they always had (ERS0012 still prefers `IsAvailable`, which says the same thing
+without resolving) — but **`?.` does not**. `?.` tests the reference rather than
 consulting the overload, and the destroyed component is a live C# object, so the call goes through.
 It reads as a guard and is not one; ERS0003 reports it. So teardown code that
 touches more than managed state — `OnDestroy`, `OnApplicationQuit`, coroutine cleanup,
@@ -311,8 +312,9 @@ break in a build with these on. Don't match singletons by name.
 
 ## Enforcement
 
-Ten Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
+Eleven Roslyn analyzers ship with the package and apply automatically to any assembly referencing it,
 covering the rules above that are checkable: the required `base.Awake()` and its position, field
 caching, unguarded teardown access, `?.` on `Instance`, construction-time and
 serialization-callback access, `Awake` declared without `override`, `hideFlags` set on a
-singleton, and a type argument that is not the type itself. See [analyzers.md](analyzers.md).
+singleton, a type argument that is not the type itself, and `Instance` compared to null. See
+[analyzers.md](analyzers.md).

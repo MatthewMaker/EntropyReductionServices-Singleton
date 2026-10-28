@@ -6,6 +6,14 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **ERS0012: comparing a singleton's `Instance` to null.** Outside teardown `Instance` is never
+  null, so `Instance == null` never fires and `Instance != null` is always true — and the read
+  resolves or creates the singleton the check appears to be asking about. Reported for `==` and
+  `!=` against `null` and for `is null` / `is not null`. Use `IsAvailable`, `Exists` or
+  `TryGetInstance` instead. Ships as a warning.
+
 ### Changed
 
 - **Breaking: the base class's plumbing is private.** `Current`, `Log`, `Annotate`,

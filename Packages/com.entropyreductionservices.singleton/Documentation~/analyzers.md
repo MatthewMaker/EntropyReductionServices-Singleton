@@ -1,6 +1,6 @@
 # Singleton analyzers
 
-Ten rules enforcing [the contract](contract.md). They ship
+Eleven rules enforcing [the contract](contract.md). They ship
 as `Runtime/Analyzers/ERS.Singleton.Analyzers.dll` and apply to this package's assembly **and to
 every assembly that references it** — that scoping is Unity's documented behaviour for an analyzer
 sitting in or under a folder containing an `.asmdef`, and it is why the DLL lives beside the
@@ -19,6 +19,7 @@ manifest entries, nothing copied into their `Assets` folder.
 | ERS0008 | Warning | Do not read a singleton's `Instance` from a serialization callback |
 | ERS0009 | Warning | Do not set `hideFlags` on a singleton |
 | ERS0011 | Warning | A singleton's type argument must be the type itself |
+| ERS0012 | Warning | Do not compare a singleton's `Instance` to null |
 
 Every rule is a warning by default. ERS0001 and ERS0004 describe outright breakage and would
 justify errors, but these rules arrive with your first reference to the package rather than by
@@ -278,6 +279,43 @@ The type argument is checked where it reaches `MonoBehaviourSingleton<T>`, so a 
 through an intermediate generic base such as `Manager<T> : MonoBehaviourSingleton<T>` is reported
 on the class that closes it. A class that derives from the argument — a subclass of a concrete
 singleton — is not reported.
+
+<a id="ers0012"></a>
+
+## ers0012 — do not compare `Instance` to null
+
+Outside teardown `Instance` returns a live singleton or throws, so `== null` is never true and
+`!= null` never false. The comparison is not free either: reading `Instance` searches the scene and
+may create a `GameObject`, so a check written to ask whether the singleton exists brings it into
+existence.
+
+```csharp
+if (AudioBus.Instance == null) return;                         // ERS0012 — never true; creates it
+Debug.Log($"bus exists: {AudioBus.Instance != null}");         // ERS0012 — always "True"
+if (AudioBus.Instance != null && AudioBus.Instance.Muted) { }  // ERS0012
+```
+
+Ask the question the comparison was written to ask:
+
+```csharp
+if (!AudioBus.IsAvailable) return;             // would Instance hand back a live one?
+Debug.Log($"bus exists: {AudioBus.Exists}");   // is one alive right now? (cache only)
+if (AudioBus.TryGetInstance(out var bus) && bus.Muted) { }
+```
+
+`IsAvailable` gives the same answer as `!= null` during teardown, where Unity's `==` overload
+reports the destroyed component as null, and the obvious one outside it, without resolving
+anything. `Exists` and `TryGetInstance` report only what is already cached. To create a singleton
+early on purpose, read it without comparing: `_ = AudioBus.Instance;`.
+
+Teardown callbacks are not exempt. There `== null` does give the right answer, but `IsAvailable`
+gives the same one, and the same `OnDestroy` also runs when an object is destroyed mid-session,
+where the read creates a replacement nobody needed.
+
+`==` and `!=` against a `null` literal are reported on either side, as are `is null` and
+`is not null` — which test the reference rather than the overload, so they are wrong in teardown
+too. Comparing a member of the instance (`AudioBus.Instance.Clip == null`), comparing against
+anything other than `null`, and comparing a local copy are not.
 
 ## Retuning severities
 

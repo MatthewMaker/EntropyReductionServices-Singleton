@@ -72,7 +72,7 @@ What that buys you and what it does not:
 |---|---|
 | Plain C# members on the returned object | Work. Lists, dictionaries, events, plain fields. |
 | Members declared by `UnityEngine` | Throw `MissingReferenceException`: `transform`, `gameObject`, `enabled`, `StartCoroutine`. ERS0003 reports these, and only these. |
-| `Instance != null` | Unchanged. Unity's `==` overload still reports the tombstone as null. |
+| `Instance != null` | Unchanged. Unity's `==` overload still reports the tombstone as null. ERS0012 still reports it: `IsAvailable` gives the same answer without resolving anything, and outside teardown the comparison creates the singleton. |
 | `Instance?.Foo()` | **Not a guard.** `?.` tests the reference, not the `==` overload, and the destroyed component is a live C# object — so the call proceeds. ERS0003 reports it. |
 | `IsAvailable`, `Exists`, `TryGetInstance` | Answer whether a *live* singleton exists, so they go false while `Instance` still returns a reference. |
 
