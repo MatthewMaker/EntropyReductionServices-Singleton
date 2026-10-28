@@ -6,6 +6,8 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [4.0.0]
+
 ### Added
 
 - **ERS0012: comparing a singleton's `Instance` to null.** Outside teardown `Instance` is never
