@@ -6,6 +6,27 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: the base class's plumbing is private.** `Current`, `Log`, `Annotate`,
+  `DebugSingletonGet`, `EditModePolicy`, `LifetimePolicy`, `CreationPolicy`, `MayCreate`,
+  `MayResolve`, `DestroySafe`, `WarnUnavailable`, `PolicyViolationMessage`, `MaybeFindInScene`,
+  `MaybeCreateNew` and `MaybeCreateFromResource` were protected. They let a subclass skip the policy
+  checks in `Instance`, collided with common names in user code — a subclass declaring its own
+  `Current` silently shadowed the slot — and in `Log`'s case looked like a logger but compiled to
+  nothing, because its `[Conditional("SINGLETON_DEBUG")]` is evaluated in the caller's assembly.
+  Read the slot through `Instance`, `TryGetInstance` or `IsCurrentInstance` instead.
+- **Breaking: `AssignInAwake`, `DetachIfNotRoot`, `DontDestroy` and `DestroyDuplicate` are private
+  and no longer virtual.** Overriding any of them could break the contract, and none was documented
+  as an extension point. `DestroyWholeGameObject` remains the override point for duplicate
+  handling.
+- **Breaking: `FramePromoted` is internal.** A debug aid, and the only public instance member, so
+  it appeared on every `Foo.Instance.` in consuming code.
+
+### Removed
+
+- **Breaking: `IsDontDestroyOnLoad()`**, which nothing called.
+
 ## [3.1.0]
 
 ### Added

@@ -18,6 +18,7 @@
 
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -27,6 +28,10 @@ using Object = UnityEngine.Object;
 // ReSharper disable StaticMemberInGenericType
 // ReSharper disable ClassWithVirtualMembersNeverInherited.Global
 // ReSharper disable UnusedMember.Global
+
+// FramePromoted is internal so it stays out of every consumer's completion list; the PlayMode
+// suite still pins its value.
+[assembly: InternalsVisibleTo("EntropyReductionServices.Singletons.PlayModeTests")]
 
 namespace EntropyReductionServices.Singletons
 {
@@ -310,6 +315,12 @@ namespace EntropyReductionServices.Singletons
     ///
     /// The type parameter is constrained CRTP-style (T must be the concrete subclass) so that
     /// the cached instance is statically typed as the subclass.
+    ///
+    /// A subclass sees only what it needs: Awake, OnDestroy, IsCurrentInstance, LastKnown,
+    /// AloneOnItsGameObject and the DestroyWholeGameObject override. Everything else is private.
+    /// Exposed, the plumbing let a subclass skip the policy checks in Instance, shadowed common
+    /// names such as Current, and offered a Log that compiled to nothing — [Conditional] is
+    /// evaluated in the caller's assembly, where SINGLETON_DEBUG is not defined.
     /// </summary>
     /// <remarks>Usage: <c>public class Foo : MonoBehaviourSingleton<Foo> { }</c></remarks>
     [DisallowMultipleComponent]
@@ -324,9 +335,10 @@ namespace EntropyReductionServices.Singletons
         /// <summary>
         /// The frame in which this object became the singleton. Debug aid only.
         /// Deliberately a property: the old public field was serialized into scenes and prefabs
-        /// and shipped stale frame numbers in the build.
+        /// and shipped stale frame numbers in the build. Internal, because as the one public
+        /// instance member it appeared on every <c>Foo.Instance.</c> in consuming code.
         /// </summary>
-        public int FramePromoted { get; private set; }
+        internal int FramePromoted { get; private set; }
 
         /// <summary>True when this component is the live singleton. Reference equality, so it is
         /// safe to call from OnDestroy where Unity's == overload is misleading.</summary>
@@ -338,7 +350,7 @@ namespace EntropyReductionServices.Singletons
         /// managed object whose native peer is gone) into a real null so callers can use
         /// ReferenceEquals and ?. safely.
         /// </summary>
-        protected static T Current
+        private static T Current
         {
             get
             {
@@ -348,7 +360,7 @@ namespace EntropyReductionServices.Singletons
                 if (s_instance == null) s_instance = null; // Unity operator== -> drop the dead wrapper
                 return s_instance;
             }
-            private set
+            set
             {
                 s_instance = value;
                 s_instanceSession = SingletonRuntime.SessionId;
@@ -416,13 +428,13 @@ namespace EntropyReductionServices.Singletons
         }
 
         [Conditional("SINGLETON_DEBUG_GET")]
-        protected static void DebugSingletonGet()
+        private static void DebugSingletonGet()
         {
             Debug.LogWarning($"[{Time.frameCount}] [SINGLEGET] {(object)s_instance ?? "<null>"} GET", s_instance);
         }
 
         [Conditional("SINGLETON_DEBUG")]
-        protected static void Log(string s, Object context = null)
+        private static void Log(string s, Object context = null)
         {
             Debug.LogWarning($"[{Time.frameCount}] [SINGLETON] {typeof(T).Name} {s}", context);
         }
@@ -433,7 +445,7 @@ namespace EntropyReductionServices.Singletons
         /// per event, and grew without bound on persistent singletons.
         /// </summary>
         [Conditional("SINGLETON_DEBUG")]
-        protected static void Annotate(Component target, string suffix)
+        private static void Annotate(Component target, string suffix)
         {
             if (target == null) return;
             if (target.name.Length > 128) return; // stop runaway concatenation across scene loads
@@ -446,7 +458,7 @@ namespace EntropyReductionServices.Singletons
         /// Resolves (once) how this type behaves outside play mode. Defaults to CreateTransient,
         /// so Instance keeps the same never-null contract in the editor that it has at runtime.
         /// </summary>
-        protected static SingletonEditModePolicy EditModePolicy
+        private static SingletonEditModePolicy EditModePolicy
         {
             get
             {
@@ -464,7 +476,7 @@ namespace EntropyReductionServices.Singletons
         private static SingletonLifetimePolicy? s_lifetimePolicy;
 
         /// <summary>Resolves (once) how long this type lives. Defaults to Application.</summary>
-        protected static SingletonLifetimePolicy LifetimePolicy
+        private static SingletonLifetimePolicy LifetimePolicy
         {
             get
             {
@@ -485,7 +497,7 @@ namespace EntropyReductionServices.Singletons
         /// Resolves (once) whether this type may create an instance at all. Defaults to
         /// CreateOnDemand, the never-null contract of Instance.
         /// </summary>
-        protected static SingletonCreationPolicy CreationPolicy
+        private static SingletonCreationPolicy CreationPolicy
         {
             get
             {
@@ -504,7 +516,7 @@ namespace EntropyReductionServices.Singletons
         /// True when this type is allowed to create an instance in the current mode: its creation
         /// policy permits it, and outside play mode its edit-mode policy does too.
         /// </summary>
-        protected static bool MayCreate =>
+        private static bool MayCreate =>
             CreationPolicy == SingletonCreationPolicy.CreateOnDemand &&
             (Application.isPlaying || EditModePolicy == SingletonEditModePolicy.CreateTransient);
 
@@ -518,7 +530,7 @@ namespace EntropyReductionServices.Singletons
         /// isPlaying is tested first so the attribute reflection behind EditModePolicy is
         /// short-circuited away in a player build, exactly as in Instance.
         /// </summary>
-        protected static bool MayResolve =>
+        private static bool MayResolve =>
             Application.isPlaying || EditModePolicy != SingletonEditModePolicy.Disabled;
 
         /// <summary>
@@ -536,7 +548,7 @@ namespace EntropyReductionServices.Singletons
         /// Object.Destroy is deferred to end of frame and logs an error outside play mode;
         /// DestroyImmediate is required there but is unsafe during runtime Awake/physics callbacks.
         /// </summary>
-        protected static void DestroySafe(Object target)
+        private static void DestroySafe(Object target)
         {
             if (target == null) return;
             if (Application.isPlaying) Destroy(target);
@@ -549,7 +561,7 @@ namespace EntropyReductionServices.Singletons
         /// Notes, once per session, that Instance was read during shutdown. One line at app exit,
         /// not a per-call-site log.
         /// </summary>
-        protected static void WarnUnavailable()
+        private static void WarnUnavailable()
         {
             if (s_warnedUnavailable) return;
             s_warnedUnavailable = true;
@@ -565,7 +577,7 @@ namespace EntropyReductionServices.Singletons
         /// Names whichever policy stopped the resolution: the edit-mode one outside play mode when
         /// it is the stricter, otherwise the creation policy.
         /// </summary>
-        protected static string PolicyViolationMessage()
+        private static string PolicyViolationMessage()
         {
             if (!Application.isPlaying && EditModePolicy != SingletonEditModePolicy.CreateTransient)
                 return $"{typeof(T).Name}.Instance was requested outside play mode, but the type is marked " +
@@ -590,7 +602,7 @@ namespace EntropyReductionServices.Singletons
         /// GameObjects; a singleton parked on an inactive object will be missed, and will destroy
         /// itself via DestroyDuplicate when it is eventually enabled.
         /// </summary>
-        protected static void MaybeFindInScene()
+        private static void MaybeFindInScene()
         {
             if (SingletonRuntime.IsQuitting)
             {
@@ -740,7 +752,7 @@ namespace EntropyReductionServices.Singletons
         /// opts out via [SingletonEditMode], but edit-mode creations are marked DontSave so they
         /// cannot be serialized into the scene or prefab the user happens to have open.
         /// </summary>
-        protected static void MaybeCreateNew()
+        private static void MaybeCreateNew()
         {
             if (SingletonRuntime.IsTearingDown || !MayCreate) return;
             if (Current != null) return;
@@ -756,7 +768,7 @@ namespace EntropyReductionServices.Singletons
         /// synchronous read, so probing it on every access of a null Instance is a per-frame hitch
         /// risk on Quest.
         /// </summary>
-        protected static void MaybeCreateFromResource()
+        private static void MaybeCreateFromResource()
         {
             if (SingletonRuntime.IsTearingDown || !MayCreate) return;
             if (Current != null || s_resourceProbed) return;
@@ -793,7 +805,7 @@ namespace EntropyReductionServices.Singletons
         }
 
         /// <summary>Claims the singleton slot for this component during Awake, if it is still free.</summary>
-        protected virtual void AssignInAwake()
+        private void AssignInAwake()
         {
             if (Current == null)
             {
@@ -814,7 +826,7 @@ namespace EntropyReductionServices.Singletons
         /// When true, reparents children to the current parent first, so only this object persists.
         /// When false, the subtree travels with it.
         /// </param>
-        protected virtual void DetachIfNotRoot(bool promoteChildren = false)
+        private void DetachIfNotRoot(bool promoteChildren = false)
         {
             if (transform.parent == null) return;
 
@@ -831,7 +843,7 @@ namespace EntropyReductionServices.Singletons
         /// Marks the singleton persistent. Unity's DontDestroyOnLoad only applies to root objects
         /// and warns-then-ignores otherwise.
         /// </summary>
-        protected virtual void DontDestroy()
+        private void DontDestroy()
         {
             if (Current == null) return;
             if (!IsCurrentInstance) return; // never persist a duplicate that is about to be destroyed
@@ -850,19 +862,6 @@ namespace EntropyReductionServices.Singletons
             DontDestroyOnLoad(gameObject);
             Annotate(this, "(!)");
             Log("marked DontDestroyOnLoad.", this);
-        }
-
-        /// <summary>
-        /// True when the live instance lives in Unity's DontDestroyOnLoad scene. The old
-        /// implementation tested HideFlags.DontSave, which DontDestroyOnLoad does not set, so it
-        /// always returned false.
-        /// </summary>
-        protected static bool IsDontDestroyOnLoad()
-        {
-            var inst = Current;
-            if (inst == null) return false;
-            var scene = inst.gameObject.scene;
-            return scene.buildIndex == -1 && scene.name == "DontDestroyOnLoad";
         }
 
         /// <summary>
@@ -898,7 +897,7 @@ namespace EntropyReductionServices.Singletons
         private static bool? s_hasSerializedFields;
 
         /// <summary>Removes this component (or its GameObject) because the slot is already filled.</summary>
-        protected virtual void DestroyDuplicate()
+        private void DestroyDuplicate()
         {
             if (IsCurrentInstance)
             {

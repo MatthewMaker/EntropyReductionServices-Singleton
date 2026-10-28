@@ -216,8 +216,8 @@ verify() {
 # Batchmode exits non-zero on failure, but the XML is what says how much actually ran.
 run_unity() {
     local platform="$1"
-    local results; results="$(mktemp -t "ers-$platform")".xml
-    local log;     log="$(mktemp -t "ers-$platform")".log
+    local results; results="$(mktemp "${TMPDIR:-/tmp}/ers-$platform.XXXXXX")".xml
+    local log;     log="$(mktemp "${TMPDIR:-/tmp}/ers-$platform.XXXXXX")".log
 
     if ! "$UNITY" -batchmode -nographics -projectPath "$ROOT" -runTests \
             -testPlatform "$platform" -testResults "$results" -logFile "$log"; then

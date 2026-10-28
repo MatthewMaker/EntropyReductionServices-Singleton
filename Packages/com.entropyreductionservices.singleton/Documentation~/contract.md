@@ -89,7 +89,10 @@ more than managed state still does — via `IsAvailable` or `TryGetInstance`, ne
   relies on discipline. ERS0001, ERS0005 and ERS0007 exist to catch it.
 - A non-default `Resources` path requires `[SingletonResource("path")]`.
 - Singletons with the default Application lifetime accept being reparented to the scene root.
-- `Current` is read-only to subclasses; claim the slot via `AssignInAwake` or the lazy path.
+- The slot itself is not visible to subclasses. Claim it through `base.Awake()` or the lazy path;
+  read it through `Instance`, `TryGetInstance` or `IsCurrentInstance`. The subclass surface is
+  `Awake`, `OnDestroy`, `IsCurrentInstance`, `LastKnown`, `AloneOnItsGameObject` and the one
+  override point, `DestroyWholeGameObject`; everything else on the base is private.
 - Unity 6.3 LTS (6000.3) or newer, per `package.json`.
 
 ## Forbidden usages
