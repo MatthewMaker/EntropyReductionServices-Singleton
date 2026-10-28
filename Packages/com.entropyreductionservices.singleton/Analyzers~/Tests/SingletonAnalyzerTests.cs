@@ -197,6 +197,54 @@ namespace Client
     }
 }");
 
+        /// <summary>
+        /// The instance still reaches the field through expressions that hand the same object on.
+        /// </summary>
+        [Test]
+        public Task ERS0002_ThroughValuePreservingExpressions_IsReported() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private static Bus s_bus;
+        private static UnityEngine.Component s_component;
+        private void Run(bool flag)
+        {
+            s_bus = ({|ERS0002:Bus.Instance|});
+            s_bus = flag ? {|ERS0002:Bus.Instance|} : null;
+            s_bus = s_bus ?? {|ERS0002:Bus.Instance|};
+            s_bus ??= {|ERS0002:Bus.Instance|};
+            s_component = (UnityEngine.Component){|ERS0002:Bus.Instance|};
+            s_component = {|ERS0002:Bus.Instance|} as UnityEngine.Component;
+        }
+    }
+}");
+
+        /// <summary>
+        /// A value computed from the instance is not the instance. A static bool set from a
+        /// comparison used to be reported as caching the singleton; the comparison is ERS0012's.
+        /// </summary>
+        [Test]
+        public Task ERS0002_ValueComputedFromInstance_IsClean() => Harness.Verify(@"
+namespace Client
+{
+    using Consuming;
+    public class Holder : UnityEngine.MonoBehaviour
+    {
+        private static bool s_live;
+        private static string s_name;
+        private static UnityEngine.Transform s_transform;
+        private void Run(bool flag)
+        {
+            s_live = {|ERS0012:Bus.Instance != null|};
+            s_name = Bus.Instance.name;
+            s_transform = Bus.Instance.transform;
+            s_name = flag ? Bus.Instance.name : null;
+        }
+    }
+}");
+
         // -- ERS0004: access during MonoBehaviour construction ---------------------------------
 
         [Test]

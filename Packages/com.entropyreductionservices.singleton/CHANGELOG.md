@@ -14,6 +14,14 @@ All notable changes to this package are documented here. The format follows
   `!=` against `null` and for `is null` / `is not null`. Use `IsAvailable`, `Exists` or
   `TryGetInstance` instead. Ships as a warning.
 
+### Fixed
+
+- **ERS0002 no longer reports a value computed from `Instance` as caching it.** It climbed to the
+  nearest assignment containing the read, so `s_live = Foo.Instance != null` and
+  `s_clip = Foo.Instance.Clip` were reported as storing the singleton. It now follows only
+  expressions that pass the instance on unchanged — parentheses, casts, `as`, `??`, `?:` branches —
+  and ignores value-typed fields.
+
 ### Changed
 
 - **Breaking: the base class's plumbing is private.** `Current`, `Log`, `Annotate`,

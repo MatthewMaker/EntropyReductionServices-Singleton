@@ -81,6 +81,11 @@ private void Update()
 }
 ```
 
+Only the instance itself counts. It is followed through parentheses, casts, `as`, `??`, `??=`, the
+branches of `?:` and `!`, so `s_bus = flag ? AudioBus.Instance : null` is still reported. A value
+computed from it is not: `s_clip = AudioBus.Instance.Clip` stores the clip, and
+`s_live = AudioBus.Instance != null` stores a `bool` (and is ERS0012's to report).
+
 <a id="ers0003"></a>
 
 ## ers0003 — guard teardown access to Unity members

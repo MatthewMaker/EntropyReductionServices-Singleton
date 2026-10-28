@@ -73,7 +73,8 @@ namespace EntropyReductionServices.Analyzers
                          "anything that is not a Component, serialized fields, and fields holding " +
                          "a singleton with a Scene lifetime. A private, non-serialized field on a " +
                          "Component holding a singleton with the default Application lifetime " +
-                         "cannot outlive it and is not reported, and neither is a local variable.");
+                         "cannot outlive it and is not reported, and neither is a local variable or a " +
+                         "value computed from the instance, such as one of its members or a comparison.");
 
         /// <summary>
         /// ERS0003 — dereferencing Instance during teardown, where it returns the destroyed component.

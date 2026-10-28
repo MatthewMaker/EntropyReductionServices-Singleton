@@ -38,8 +38,12 @@ namespace EntropyReductionServices.Singletons.PlayModeTests
             WasTearingDown = SingletonRuntime.IsTearingDown;
             var active = SceneManager.GetActiveScene();
             ActiveScene = $"{active.name} (isLoaded {active.isLoaded})";
+            // ERS0012 wants IsAvailable here, and is right for ordinary code. This reader is the
+            // exception: what Instance returns from inside the unload window is what it measures.
+#pragma warning disable ERS0012
             GotLive = SceneChangeLazy.Instance != null;   // Unity ==: false for the tombstone
             GotLiveUnrelated = SceneChangeUnrelated.Instance != null;
+#pragma warning restore ERS0012
         }
     }
 }

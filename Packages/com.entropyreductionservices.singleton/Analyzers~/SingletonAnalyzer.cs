@@ -554,8 +554,9 @@ namespace EntropyReductionServices.Analyzers
             KnownTypes known,
             string singletonName)
         {
+            // A value-typed field cannot hold the reference, whatever conversion produced its value.
             var target = FindAssignedField(context, access);
-            if (target == null) return false;
+            if (target == null || target.Type.IsValueType) return false;
 
             var reason = WhyFieldCanOutlive(target, receiver, known, singletonName);
             if (reason == null) return false;
@@ -644,36 +645,59 @@ namespace EntropyReductionServices.Analyzers
                 data => SymbolEqualityComparer.Default.Equals(data.AttributeClass, attribute));
 
         /// <summary>
-        /// Resolves the field this expression is ultimately stored into, whether by field
-        /// initializer or by assignment, and null when it is not stored in a field at all.
+        /// Resolves the field the Instance itself is stored into, whether by field initializer or
+        /// by assignment, and null when it is not stored in a field at all.
+        ///
+        /// Only the instance counts, not a value computed from it. The walk climbs through
+        /// expressions that hand the same object on — parentheses, casts, 'as', '??', the branches
+        /// of '?:', '!' — and stops at anything else. It used to climb to the nearest assignment
+        /// containing the read, which reported 'bool _live = Foo.Instance != null' and
+        /// '_clip = Foo.Instance.Clip' as caching the singleton.
         /// </summary>
         private static IFieldSymbol FindAssignedField(
             SyntaxNodeAnalysisContext context,
             MemberAccessExpressionSyntax access)
         {
-            for (SyntaxNode node = access; node != null; node = node.Parent)
+            ExpressionSyntax value = access;
+            while (PassesValueThrough(value)) value = (ExpressionSyntax)value.Parent;
+
+            if (value.Parent is AssignmentExpressionSyntax assignment && assignment.Right == value &&
+                (assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) ||
+                 assignment.IsKind(SyntaxKind.CoalesceAssignmentExpression)))
             {
-                // Stop at anything that establishes a new value context; beyond these the
-                // expression is no longer "the thing being stored".
-                if (node is StatementSyntax && !(node is ExpressionStatementSyntax)) break;
-                if (node is LambdaExpressionSyntax || node is AnonymousMethodExpressionSyntax) break;
-                if (node is ArgumentSyntax) break;
+                return context.SemanticModel
+                    .GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol as IFieldSymbol;
+            }
 
-                if (node is AssignmentExpressionSyntax assignment && assignment.Right.Contains(access))
-                {
-                    return context.SemanticModel
-                        .GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol as IFieldSymbol;
-                }
-
-                if (node is VariableDeclaratorSyntax declarator &&
-                    declarator.Parent?.Parent is FieldDeclarationSyntax)
-                {
-                    return context.SemanticModel
-                        .GetDeclaredSymbol(declarator, context.CancellationToken) as IFieldSymbol;
-                }
+            if (value.Parent is EqualsValueClauseSyntax initializer &&
+                initializer.Parent is VariableDeclaratorSyntax declarator &&
+                declarator.Parent?.Parent is FieldDeclarationSyntax)
+            {
+                return context.SemanticModel
+                    .GetDeclaredSymbol(declarator, context.CancellationToken) as IFieldSymbol;
             }
 
             return null;
+        }
+
+        /// <summary>True when the expression's parent evaluates to the expression's own value.</summary>
+        private static bool PassesValueThrough(ExpressionSyntax expression)
+        {
+            switch (expression.Parent)
+            {
+                case ParenthesizedExpressionSyntax _:
+                case CastExpressionSyntax _:
+                    return true;
+                case PostfixUnaryExpressionSyntax postfix:
+                    return postfix.IsKind(SyntaxKind.SuppressNullableWarningExpression);
+                case BinaryExpressionSyntax binary:
+                    return binary.IsKind(SyntaxKind.CoalesceExpression) ||
+                           (binary.IsKind(SyntaxKind.AsExpression) && binary.Left == expression);
+                case ConditionalExpressionSyntax conditional:
+                    return conditional.Condition != expression;
+                default:
+                    return false;
+            }
         }
 
         // OnDisable is deliberately absent. It runs both during teardown and during ordinary
